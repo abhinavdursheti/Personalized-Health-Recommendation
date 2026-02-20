@@ -1,0 +1,281 @@
+{% extends 'base.html' %}
+
+{% block title %}What-If Health Simulator - Health Recommendation System{% endblock %}
+
+{% block content %}
+<div class="row mb-4">
+    <div class="col-md-12">
+        <h2 class="text-white">
+            <i class="bi bi-calculator"></i> What-If Health Simulator
+        </h2>
+        <p class="text-white-50">Predict future health outcomes based on hypothetical scenarios</p>
+    </div>
+</div>
+
+<!-- Simulator Form -->
+<div class="row mb-4">
+    <div class="col-md-8">
+        <div class="card">
+            <div class="card-body">
+                <h5 class="card-title">
+                    <i class="bi bi-question-circle text-primary"></i> Create Your Scenario
+                </h5>
+                <p class="text-muted">Enter hypothetical values to see predicted outcomes</p>
+                
+                <form id="simulatorForm">
+                    {% csrf_token %}
+                    <div class="row mb-3">
+                        <div class="col-md-6">
+                            <label class="form-label">Sleep Hours (per day)</label>
+                            <input type="number" class="form-control" id="sleep_hours" name="sleep_hours" 
+                                   step="0.5" min="4" max="12" value="{{ current_sleep }}" required>
+                            <small class="text-muted">Current: {{ current_sleep }} hours</small>
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label">Exercise Minutes (per day)</label>
+                            <input type="number" class="form-control" id="exercise_minutes" name="exercise_minutes" 
+                                   min="0" max="180" value="{{ current_exercise }}" required>
+                            <small class="text-muted">Current: {{ current_exercise }} minutes</small>
+                        </div>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label class="form-label">Number of Days</label>
+                        <input type="number" class="form-control" id="days" name="days" 
+                               min="7" max="90" value="14" required>
+                        <small class="text-muted">How many days to simulate (7-90 days)</small>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label class="form-label">Scenario Description</label>
+                        <input type="text" class="form-control" id="scenario_desc" 
+                               placeholder="e.g., What if I sleep 8 hours for 14 days?">
+                    </div>
+                    
+                    <button type="submit" class="btn btn-primary">
+                        <i class="bi bi-play-circle"></i> Run Simulation
+                    </button>
+                </form>
+            </div>
+        </div>
+    </div>
+    
+    <div class="col-md-4">
+        <div class="card">
+            <div class="card-body">
+                <h6 class="card-title">Current Status</h6>
+                <ul class="list-group list-group-flush">
+                    <li class="list-group-item d-flex justify-content-between">
+                        <span>Weight:</span>
+                        <strong>{{ current_weight }} kg</strong>
+                    </li>
+                    <li class="list-group-item d-flex justify-content-between">
+                        <span>BMI:</span>
+                        <strong>{{ current_bmi|floatformat:1 }}</strong>
+                    </li>
+                    <li class="list-group-item d-flex justify-content-between">
+                        <span>Sleep:</span>
+                        <strong>{{ current_sleep }} hrs/day</strong>
+                    </li>
+                    <li class="list-group-item d-flex justify-content-between">
+                        <span>Exercise:</span>
+                        <strong>{{ current_exercise }} min/day</strong>
+                    </li>
+                </ul>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Results Section -->
+<div class="row" id="resultsSection" style="display: none;">
+    <div class="col-md-12">
+        <div class="card">
+            <div class="card-body">
+                <h5 class="card-title">
+                    <i class="bi bi-graph-up text-success"></i> Simulation Results
+                </h5>
+                
+                <div id="resultsContent"></div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Example Scenarios -->
+<div class="row mt-4">
+    <div class="col-md-12">
+        <div class="card">
+            <div class="card-body">
+                <h6 class="card-title">
+                    <i class="bi bi-lightbulb text-warning"></i> Example Scenarios
+                </h6>
+                <div class="row">
+                    <div class="col-md-4 mb-2">
+                        <button class="btn btn-outline-primary btn-sm w-100" onclick="loadExample(8, 0, 14, 'What if I sleep 8 hours for 14 days?')">
+                            Sleep 8 hours for 14 days
+                        </button>
+                    </div>
+                    <div class="col-md-4 mb-2">
+                        <button class="btn btn-outline-primary btn-sm w-100" onclick="loadExample({{ current_sleep }}, 30, 14, 'What if I walk 30 mins daily?')">
+                            Walk 30 mins daily
+                        </button>
+                    </div>
+                    <div class="col-md-4 mb-2">
+                        <button class="btn btn-outline-primary btn-sm w-100" onclick="loadExample(8, 45, 30, 'What if I sleep 8 hours and exercise 45 mins for 30 days?')">
+                            Sleep 8hrs + Exercise 45mins (30 days)
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    const simulatorForm = document.getElementById('simulatorForm');
+    
+    if (simulatorForm) {
+        simulatorForm.addEventListener('submit', async function(e) {
+            e.preventDefault();
+            
+            const formData = {
+                sleep_hours: parseFloat(document.getElementById('sleep_hours').value),
+                exercise_minutes: parseFloat(document.getElementById('exercise_minutes').value),
+                days: parseInt(document.getElementById('days').value)
+            };
+            
+            const submitBtn = this.querySelector('button[type="submit"]');
+            const originalText = submitBtn.innerHTML;
+            submitBtn.disabled = true;
+            submitBtn.innerHTML = '<i class="bi bi-hourglass-split"></i> Running...';
+            
+            try {
+                const response = await fetch('{% url "run_simulation" %}', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-CSRFToken': '{{ csrf_token }}'
+                    },
+                    body: JSON.stringify(formData)
+                });
+                
+                const data = await response.json();
+                
+                if (data.success) {
+                    displayResults(data.results, formData);
+                } else {
+                    alert('Error: ' + data.error);
+                }
+            } catch (error) {
+                alert('Error running simulation');
+                console.error(error);
+            } finally {
+                submitBtn.disabled = false;
+                submitBtn.innerHTML = originalText;
+            }
+        });
+    }
+    
+    function displayResults(results, inputs) {
+        const resultsSection = document.getElementById('resultsSection');
+        const resultsContent = document.getElementById('resultsContent');
+        
+        const stabilityBadgeClass = {
+            'excellent': 'success',
+            'good': 'info',
+            'moderate': 'warning',
+            'needs_improvement': 'danger'
+        }[results.stability_level] || 'secondary';
+        
+        const recoveryBadgeClass = {
+            'very_fast': 'success',
+            'fast': 'info',
+            'moderate': 'warning',
+            'slow': 'danger'
+        }[results.recovery_speed] || 'secondary';
+        
+        resultsContent.innerHTML = `
+            <div class="row mb-4">
+                <div class="col-md-4">
+                    <div class="stat-card" style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);">
+                        <h3>${results.predicted_weight} kg</h3>
+                        <p>Predicted Weight</p>
+                        <small>Change: ${results.weight_change > 0 ? '+' : ''}${results.weight_change} kg</small>
+                    </div>
+                </div>
+                <div class="col-md-4">
+                    <div class="stat-card" style="background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);">
+                        <h3>${results.stability_score}%</h3>
+                        <p>Stability Score</p>
+                        <span class="badge bg-${stabilityBadgeClass}">${results.stability_level.replace('_', ' ').toUpperCase()}</span>
+                    </div>
+                </div>
+                <div class="col-md-4">
+                    <div class="stat-card" style="background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%);">
+                        <h3>${results.recovery_days} days</h3>
+                        <p>Recovery Speed</p>
+                        <span class="badge bg-${recoveryBadgeClass}">${results.recovery_speed.replace('_', ' ').toUpperCase()}</span>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="row">
+                <div class="col-md-6">
+                    <h6>Scenario Details</h6>
+                    <ul class="list-group">
+                        <li class="list-group-item d-flex justify-content-between">
+                            <span>Sleep Hours:</span>
+                            <strong>${inputs.sleep_hours} hrs/day</strong>
+                            ${results.sleep_improvement !== 0 ? `<span class="text-${results.sleep_improvement > 0 ? 'success' : 'danger'}">(${results.sleep_improvement > 0 ? '+' : ''}${results.sleep_improvement})</span>` : ''}
+                        </li>
+                        <li class="list-group-item d-flex justify-content-between">
+                            <span>Exercise Minutes:</span>
+                            <strong>${inputs.exercise_minutes} min/day</strong>
+                            ${results.exercise_improvement !== 0 ? `<span class="text-${results.exercise_improvement > 0 ? 'success' : 'danger'}">(${results.exercise_improvement > 0 ? '+' : ''}${results.exercise_improvement})</span>` : ''}
+                        </li>
+                        <li class="list-group-item d-flex justify-content-between">
+                            <span>Duration:</span>
+                            <strong>${results.days_simulated} days</strong>
+                        </li>
+                    </ul>
+                </div>
+                <div class="col-md-6">
+                    <h6>Key Insights</h6>
+                    <div class="alert alert-info">
+                        <i class="bi bi-info-circle"></i> 
+                        ${results.weight_change < 0 ? 
+                            `Predicted weight loss of ${Math.abs(results.weight_change).toFixed(2)} kg over ${results.days_simulated} days.` : 
+                            results.weight_change > 0 ?
+                            `Predicted weight gain of ${results.weight_change.toFixed(2)} kg over ${results.days_simulated} days.` :
+                            `Weight is predicted to remain stable.`
+                        }
+                    </div>
+                    <div class="alert alert-${stabilityBadgeClass}">
+                        <i class="bi bi-shield-check"></i> 
+                        Stability score of ${results.stability_score}% indicates ${results.stability_level.replace('_', ' ')} health behavior stability.
+                    </div>
+                    <div class="alert alert-${recoveryBadgeClass}">
+                        <i class="bi bi-arrow-clockwise"></i> 
+                        Recovery from setbacks is predicted to take ${results.recovery_days} days (${results.recovery_speed.replace('_', ' ')} speed).
+                    </div>
+                </div>
+            </div>
+        `;
+        
+        resultsSection.style.display = 'block';
+        resultsSection.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+    }
+    
+    function loadExample(sleep, exercise, days, description) {
+        document.getElementById('sleep_hours').value = sleep;
+        document.getElementById('exercise_minutes').value = exercise;
+        document.getElementById('days').value = days;
+        document.getElementById('scenario_desc').value = description;
+    }
+</script>
+{% endblock %}
+
+

@@ -1,0 +1,129 @@
+{% extends 'base.html' %}
+
+{% block title %}Dashboard - Insights{% endblock %}
+
+{% block content %}
+<div class="row mb-4 mt-2">
+    <div class="col-md-12 d-flex justify-content-between align-items-center">
+        <div>
+            <h2 class="text-white mb-1"><i class="bi bi-lightbulb text-info"></i> Welcome, {{ user.username }}!</h2>
+            <p class="text-light mb-0">Insights · Consistency, drift detection, and effort-to-impact ideas.</p>
+        </div>
+        <a class="btn btn-outline-light btn-sm" href="{% url 'dashboard_overview' %}">Back to Overview</a>
+    </div>
+</div>
+
+<!-- Consistency / Drift / Effort -->
+<div class="row mb-4">
+    <div class="col-md-4">
+        <div class="card">
+            <div class="card-body">
+                <h5 class="card-title">
+                    <i class="bi bi-check2-circle text-success"></i> Health Consistency
+                </h5>
+                <div class="d-flex align-items-center mb-2">
+                    <div style="width: 70%;">
+                        <div class="progress" style="height: 18px;">
+                            <div class="progress-bar bg-{% if consistency_summary.level == 'High' %}success{% elif consistency_summary.level == 'Moderate' %}warning{% else %}danger{% endif %}" role="progressbar" style="width: {{ consistency_summary.score }}%;">
+                                {{ consistency_summary.score }}
+                            </div>
+                        </div>
+                    </div>
+                    <span class="badge bg-light text-dark ms-2">{{ consistency_summary.level }}</span>
+                </div>
+                <p class="mb-1 text-muted small">{{ consistency_summary.summary }}</p>
+                <ul class="mb-0 small">
+                    <li>Sleep: {{ consistency_summary.details.sleep_score|default:"-" }} / 100</li>
+                    <li>Exercise: {{ consistency_summary.details.exercise_score|default:"-" }} / 100</li>
+                    <li>Diet: {{ consistency_summary.details.diet_score|default:"-" }} / 100</li>
+                    <li>Logging: {{ consistency_summary.details.logging_score|default:"-" }} / 100 ({{ consistency_summary.details.missed_days }} missed days)</li>
+                </ul>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-4">
+        <div class="card">
+            <div class="card-body">
+                <h5 class="card-title">
+                    <i class="bi bi-activity text-danger"></i> Health Drift Detection
+                </h5>
+                {% if drift_alerts %}
+                    <ul class="list-unstyled mb-0">
+                        {% for drift in drift_alerts %}
+                        <li class="mb-2">
+                            <span class="badge bg-{% if drift.severity == 'High' %}danger{% else %}warning{% endif %}">{{ drift.metric }}</span>
+                            <div class="small">{{ drift.message }}</div>
+                        </li>
+                        {% endfor %}
+                    </ul>
+                {% else %}
+                    <p class="text-muted mb-0 small">No negative drift spotted in recent weeks.</p>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+    <div class="col-md-4">
+        <div class="card">
+            <div class="card-body">
+                <h5 class="card-title">
+                    <i class="bi bi-lightning-charge text-primary"></i> Effort → Impact Picks
+                </h5>
+                {% if effort_actions %}
+                    <ol class="mb-0 small">
+                        {% for action in effort_actions %}
+                        <li class="mb-2">
+                            <strong>{{ action.title }}</strong>
+                            <div class="text-muted">{{ action.explanation }}</div>
+                            <span class="badge bg-light text-dark">Effort: {{ action.effort_minutes }} min</span>
+                            <span class="badge bg-success">Impact/Effort: {{ action.ratio }}</span>
+                        </li>
+                        {% endfor %}
+                    </ol>
+                {% else %}
+                    <p class="text-muted mb-0 small">Add more data to unlock personalized quick wins.</p>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Progress Assessment -->
+{% if progress_assessment.status != 'insufficient_data' %}
+<div class="row mb-4">
+    <div class="col-md-12">
+        <div class="card border-{% if progress_assessment.status == 'excellent' %}success{% elif progress_assessment.status == 'good' %}info{% elif progress_assessment.status == 'maintaining' %}warning{% else %}danger{% endif %}">
+            <div class="card-body">
+                <h5 class="card-title">
+                    <i class="bi bi-flag"></i> Progress Assessment
+                </h5>
+                <p class="mb-1">{{ progress_assessment.message }}</p>
+                <p class="mb-0 small text-muted">
+                    Weight change: {{ progress_assessment.weight_change|floatformat:1 }} kg ({{ progress_assessment.weight_change_pct|floatformat:1 }}%)
+                </p>
+            </div>
+        </div>
+    </div>
+</div>
+{% endif %}
+
+<!-- Quick links -->
+<div class="row mb-4">
+    <div class="col-md-6">
+        <a class="card text-decoration-none" href="{% url 'analytics' %}">
+            <div class="card-body">
+                <h6 class="card-title"><i class="bi bi-graph-up-arrow"></i> Go to Analytics</h6>
+                <p class="text-muted small mb-0">Advanced analysis and historical results.</p>
+            </div>
+        </a>
+    </div>
+    <div class="col-md-6">
+        <a class="card text-decoration-none" href="{% url 'recommendations' %}">
+            <div class="card-body">
+                <h6 class="card-title"><i class="bi bi-lightbulb"></i> View Recommendations</h6>
+                <p class="text-muted small mb-0">See personalized diet, exercise, and sleep plans.</p>
+            </div>
+        </a>
+    </div>
+</div>
+{% endblock %}
+

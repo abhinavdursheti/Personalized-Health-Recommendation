@@ -1,0 +1,86 @@
+{% extends 'base.html' %}
+
+{% block title %}Setup Profile - Health Recommendation System{% endblock %}
+
+{% block content %}
+<div class="row justify-content-center">
+    <div class="col-md-8">
+        <div class="card">
+            <div class="card-body p-5">
+                <h2 class="text-center mb-4">
+                    <i class="bi bi-person-circle text-primary"></i> 
+                    {% if is_update %}Update{% else %}Setup{% endif %} Your Health Profile
+                </h2>
+                <form method="post">
+                    {% csrf_token %}
+                    <div class="row">
+                        <div class="col-md-6 mb-3">
+                            <label class="form-label">Age</label>
+                            <input type="number" class="form-control" name="age" value="{{ profile.age|default:'' }}" required min="1" max="120">
+                        </div>
+                        <div class="col-md-6 mb-3">
+                            <label class="form-label">Gender</label>
+                            <select class="form-select" name="gender" required>
+                                <option value="">Select...</option>
+                                <option value="M" {% if profile.gender == 'M' %}selected{% endif %}>Male</option>
+                                <option value="F" {% if profile.gender == 'F' %}selected{% endif %}>Female</option>
+                                <option value="O" {% if profile.gender == 'O' %}selected{% endif %}>Other</option>
+                            </select>
+                        </div>
+                    </div>
+                    <div class="row">
+                        <div class="col-md-6 mb-3">
+                            <label class="form-label">Height (cm)</label>
+                            <input type="number" class="form-control" name="height" value="{{ profile.height|default:'' }}" required step="0.1" min="50" max="250">
+                        </div>
+                        <div class="col-md-6 mb-3">
+                            <label class="form-label">Weight (kg)</label>
+                            <input type="number" class="form-control" name="weight" value="{{ profile.weight|default:'' }}" required step="0.1" min="20" max="300">
+                        </div>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Activity Level</label>
+                        <select class="form-select" name="activity_level" required>
+                            <option value="sedentary" {% if profile.activity_level == 'sedentary' %}selected{% endif %}>Sedentary (little or no exercise)</option>
+                            <option value="light" {% if profile.activity_level == 'light' %}selected{% endif %}>Lightly active (light exercise 1-3 days/week)</option>
+                            <option value="moderate" {% if profile.activity_level == 'moderate' %}selected{% endif %}>Moderately active (moderate exercise 3-5 days/week)</option>
+                            <option value="active" {% if profile.activity_level == 'active' %}selected{% endif %}>Very active (hard exercise 6-7 days/week)</option>
+                            <option value="very_active" {% if profile.activity_level == 'very_active' %}selected{% endif %}>Extra active (very hard exercise, physical job)</option>
+                        </select>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Health Goal</label>
+                        <select class="form-select" name="health_goal" required>
+                            <option value="weight_loss" {% if profile.health_goal == 'weight_loss' %}selected{% endif %}>Weight Loss</option>
+                            <option value="muscle_gain" {% if profile.health_goal == 'muscle_gain' %}selected{% endif %}>Muscle Gain</option>
+                            <option value="maintenance" {% if profile.health_goal == 'maintenance' %}selected{% endif %}>Weight Maintenance</option>
+                            <option value="general" {% if profile.health_goal == 'general' %}selected{% endif %}>General Wellness</option>
+                        </select>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Dietary Preference</label>
+                        <select class="form-select" name="dietary_preference">
+                            <option value="none" {% if profile.dietary_preference == 'none' %}selected{% endif %}>No Preference</option>
+                            <option value="vegetarian" {% if profile.dietary_preference == 'vegetarian' %}selected{% endif %}>Vegetarian</option>
+                            <option value="vegan" {% if profile.dietary_preference == 'vegan' %}selected{% endif %}>Vegan</option>
+                            <option value="keto" {% if profile.dietary_preference == 'keto' %}selected{% endif %}>Keto</option>
+                            <option value="paleo" {% if profile.dietary_preference == 'paleo' %}selected{% endif %}>Paleo</option>
+                        </select>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Allergies (comma-separated)</label>
+                        <input type="text" class="form-control" name="allergies" value="{{ profile.allergies|default:'' }}" placeholder="e.g., peanuts, dairy, gluten">
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Medical Conditions</label>
+                        <textarea class="form-control" name="medical_conditions" rows="3" placeholder="Any medical conditions or concerns">{{ profile.medical_conditions|default:'' }}</textarea>
+                    </div>
+                    <button type="submit" class="btn btn-primary w-100">Save Profile</button>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+

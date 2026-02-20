@@ -1,0 +1,273 @@
+{% extends 'base.html' %}
+
+{% block title %}Dashboard - Alerts & Reminders{% endblock %}
+
+{% block content %}
+<div class="row mb-4 mt-2">
+    <div class="col-md-12 d-flex justify-content-between align-items-center">
+        <div>
+            <h2 class="text-white mb-1"><i class="bi bi-exclamation-triangle text-danger"></i> Welcome, {{ user.username }}!</h2>
+            <p class="text-light mb-0">Alerts & reminders · Health risk alerts, disease predictions, and reminders.</p>
+        </div>
+        <a class="btn btn-outline-light btn-sm" href="{% url 'dashboard_overview' %}">Back to Overview</a>
+    </div>
+</div>
+
+<!-- Risk Alerts -->
+{% if risk_alerts %}
+<div class="row mb-4">
+    <div class="col-md-12">
+        <div class="card border-danger">
+            <div class="card-body">
+                <h5 class="card-title text-danger">
+                    <i class="bi bi-exclamation-triangle-fill"></i> Health Risk Alerts
+                </h5>
+                {% for alert in risk_alerts %}
+                <div class="alert alert-{% if alert.risk_level == 'critical' or alert.risk_level == 'high' %}danger{% elif alert.risk_level == 'medium' %}warning{% else %}info{% endif %} alert-dismissible fade show" role="alert">
+                    <strong>{{ alert.get_risk_level_display }} - {{ alert.get_alert_type_display }}:</strong>
+                    <p class="mb-2">{{ alert.message }}</p>
+                    {% if alert.recommendations %}
+                    <ul class="mb-0">
+                        {% for rec in alert.recommendations %}
+                        <li>{{ rec }}</li>
+                        {% endfor %}
+                    </ul>
+                    {% endif %}
+                    <button type="button" class="btn-close" onclick="markAlertRead({{ alert.id }})" aria-label="Close"></button>
+                </div>
+                {% endfor %}
+            </div>
+        </div>
+    </div>
+</div>
+{% else %}
+<p class="text-muted">No active risk alerts.</p>
+{% endif %}
+
+<!-- Disease Predictions -->
+{% if disease_predictions %}
+<div class="row mb-4">
+    <div class="col-md-12">
+        <div class="card border-warning">
+            <div class="card-body">
+                <h5 class="card-title">
+                    <i class="bi bi-heart-pulse text-warning"></i> Disease Risk Predictions
+                </h5>
+                <p class="text-muted">Based on your health data, here are potential health risks:</p>
+                {% for prediction in disease_predictions %}
+                <div class="card mb-3">
+                    <div class="card-body">
+                        <h6>
+                            {{ prediction.disease_type }}
+                            <span class="badge bg-{% if prediction.risk_level == 'high' %}danger{% elif prediction.risk_level == 'medium' %}warning{% else %}info{% endif %}">
+                                {{ prediction.get_risk_level_display }} ({{ prediction.risk_score|floatformat:1 }}%)
+                            </span>
+                        </h6>
+                        {% if prediction.factors %}
+                        <p class="mb-2"><strong>Factors:</strong></p>
+                        <ul class="mb-2">
+                            {% for factor in prediction.factors %}
+                            <li>{{ factor }}</li>
+                            {% endfor %}
+                        </ul>
+                        {% endif %}
+                        {% if prediction.recommendations %}
+                        <p class="mb-1"><strong>Recommendations:</strong></p>
+                        <ul class="mb-0">
+                            {% for rec in prediction.recommendations %}
+                            <li>{{ rec }}</li>
+                            {% endfor %}
+                        </ul>
+                        {% endif %}
+                    </div>
+                </div>
+                {% endfor %}
+                <button class="btn btn-warning" onclick="generateDiseasePrediction()">
+                    <i class="bi bi-arrow-clockwise"></i> Refresh Predictions
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+{% endif %}
+
+<!-- Reminders -->
+<div class="row mb-4">
+    <div class="col-md-6">
+        <div class="card">
+            <div class="card-body">
+                <h5 class="card-title">
+                    <i class="bi bi-bell text-primary"></i> Reminders
+                </h5>
+                {% if reminders %}
+                <div class="list-group">
+                    {% for reminder in reminders %}
+                    <div class="list-group-item d-flex justify-content-between align-items-center">
+                        <div>
+                            <strong>{{ reminder.get_reminder_type_display }}</strong> - {{ reminder.time|time:"H:i" }}
+                            {% if reminder.message %}
+                            <br><small class="text-muted">{{ reminder.message }}</small>
+                            {% endif %}
+                        </div>
+                        <div>
+                            <button class="btn btn-sm btn-{% if reminder.is_active %}success{% else %}secondary{% endif %}" 
+                                    onclick="toggleReminder({{ reminder.id }})">
+                                <i class="bi bi-{% if reminder.is_active %}check{% else %}x{% endif %}"></i>
+                            </button>
+                            <button class="btn btn-sm btn-danger" onclick="deleteReminder({{ reminder.id }})">
+                                <i class="bi bi-trash"></i>
+                            </button>
+                        </div>
+                    </div>
+                    {% endfor %}
+                </div>
+                {% else %}
+                <p class="text-muted">No reminders set. Create one below!</p>
+                {% endif %}
+                
+                <hr>
+                <h6>Create New Reminder</h6>
+                <form id="reminderForm">
+                    {% csrf_token %}
+                    <div class="mb-2">
+                        <select class="form-select form-select-sm" name="reminder_type" required>
+                            <option value="food">Food/Meal</option>
+                            <option value="water">Water</option>
+                            <option value="exercise">Exercise</option>
+                            <option value="medication">Medication</option>
+                            <option value="sleep">Sleep</option>
+                        </select>
+                    </div>
+                    <div class="mb-2">
+                        <input type="time" class="form-control form-control-sm" name="time" required>
+                    </div>
+                    <div class="mb-2">
+                        <input type="text" class="form-control form-control-sm" name="message" placeholder="Optional message">
+                    </div>
+                    <button type="submit" class="btn btn-primary btn-sm w-100">
+                        <i class="bi bi-plus-circle"></i> Add Reminder
+                    </button>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    // Reminder Form
+    const reminderForm = document.getElementById('reminderForm');
+    if (reminderForm) {
+        reminderForm.addEventListener('submit', async function(e) {
+            e.preventDefault();
+            const formData = new FormData(this);
+            try {
+                const response = await fetch('{% url "create_reminder" %}', {
+                    method: 'POST',
+                    body: formData
+                });
+                const data = await response.json();
+                if (data.success) {
+                    alert('Reminder created successfully!');
+                    this.reset();
+                    location.reload();
+                } else {
+                    alert('Error: ' + data.error);
+                }
+            } catch {
+                alert('Error creating reminder');
+            }
+        });
+    }
+
+    // Toggle Reminder
+    async function toggleReminder(reminderId) {
+        try {
+            const response = await fetch(`{% url "toggle_reminder" 0 %}`.replace('0', reminderId), {
+                method: 'POST',
+                headers: {
+                    'X-CSRFToken': '{{ csrf_token }}',
+                    'Content-Type': 'application/json'
+                }
+            });
+            const data = await response.json();
+            if (data.success) {
+                location.reload();
+            }
+        } catch {
+            alert('Error toggling reminder');
+        }
+    }
+
+    // Delete Reminder
+    async function deleteReminder(reminderId) {
+        if (!confirm('Delete this reminder?')) return;
+        try {
+            const response = await fetch(`{% url "delete_reminder" 0 %}`.replace('0', reminderId), {
+                method: 'POST',
+                headers: {
+                    'X-CSRFToken': '{{ csrf_token }}',
+                    'Content-Type': 'application/json'
+                }
+            });
+            const data = await response.json();
+            if (data.success) {
+                location.reload();
+            }
+        } catch {
+            alert('Error deleting reminder');
+        }
+    }
+
+    // Mark Alert as Read
+    async function markAlertRead(alertId) {
+        try {
+            const response = await fetch(`{% url "mark_alert_read" 0 %}`.replace('0', alertId), {
+                method: 'POST',
+                headers: {
+                    'X-CSRFToken': '{{ csrf_token }}',
+                    'Content-Type': 'application/json'
+                }
+            });
+            const data = await response.json();
+            if (data.success) {
+                location.reload();
+            }
+        } catch {
+            alert('Error marking alert as read');
+        }
+    }
+
+    // Generate Disease Prediction
+    async function generateDiseasePrediction() {
+        const btn = event.target.closest('button');
+        if (!btn) return;
+        const originalText = btn.innerHTML;
+        btn.disabled = true;
+        btn.innerHTML = '<i class="bi bi-hourglass-split"></i> Generating...';
+        const formData = new FormData();
+        formData.append('csrfmiddlewaretoken', '{{ csrf_token }}');
+        try {
+            const response = await fetch('{% url "generate_disease_prediction" %}', {
+                method: 'POST',
+                body: formData
+            });
+            const data = await response.json();
+            if (data.success) {
+                alert('Disease predictions updated!');
+                location.reload();
+            } else {
+                alert('Error: ' + data.error);
+                btn.disabled = false;
+                btn.innerHTML = originalText;
+            }
+        } catch {
+            alert('Error generating predictions');
+            btn.disabled = false;
+            btn.innerHTML = originalText;
+        }
+    }
+</script>
+{% endblock %}
+

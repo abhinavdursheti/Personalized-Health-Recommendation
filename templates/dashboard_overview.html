@@ -1,0 +1,211 @@
+{% extends 'base.html' %}
+
+{% block title %}Dashboard - Overview{% endblock %}
+
+{% block content %}
+<div class="row mb-4 mt-2">
+    <div class="col-md-12 d-flex justify-content-between align-items-center">
+        <div>
+            <h2 class="text-white mb-1"><i class="bi bi-speedometer2"></i> Welcome, {{ user.username }}!</h2>
+            <p class="text-light mb-0">Overview of your core health metrics.</p>
+        </div>
+        <div class="btn-group">
+            <a class="btn btn-outline-light btn-sm" href="{% url 'dashboard_activity' %}">Activity</a>
+            <a class="btn btn-outline-light btn-sm" href="{% url 'dashboard_nutrition' %}">Nutrition</a>
+            <a class="btn btn-outline-light btn-sm" href="{% url 'dashboard_alerts' %}">Alerts</a>
+            <a class="btn btn-outline-light btn-sm" href="{% url 'dashboard_insights' %}">Insights</a>
+        </div>
+    </div>
+</div>
+
+<!-- Stats Cards -->
+<div class="row mb-4">
+    <div class="col-md-3">
+        <div class="stat-card">
+            <h3>{{ profile.bmi|floatformat:1 }}</h3>
+            <p><i class="bi bi-graph-up"></i> BMI</p>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="stat-card" style="background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);">
+            <h3>{{ profile.bmr|floatformat:0 }}</h3>
+            <p><i class="bi bi-fire"></i> BMR (cal/day)</p>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="stat-card" style="background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%);">
+            <h3>{{ profile.tdee|floatformat:0 }}</h3>
+            <p><i class="bi bi-lightning-charge"></i> TDEE (cal/day)</p>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="stat-card" style="background: linear-gradient(135deg, #43e97b 0%, #38f9d7 100%);">
+            <h3>{{ profile.health_goal|title }}</h3>
+            <p><i class="bi bi-bullseye"></i> Goal</p>
+        </div>
+    </div>
+</div>
+
+<!-- Progress Assessment -->
+{% if progress_assessment.status != 'insufficient_data' %}
+<div class="row mb-4">
+    <div class="col-md-12">
+        <div class="card border-{% if progress_assessment.status == 'excellent' %}success{% elif progress_assessment.status == 'good' %}info{% elif progress_assessment.status == 'maintaining' %}warning{% else %}danger{% endif %}">
+            <div class="card-body">
+                <h5 class="card-title">
+                    <i class="bi bi-{% if progress_assessment.status == 'excellent' %}check-circle-fill text-success{% elif progress_assessment.status == 'good' %}check-circle text-info{% elif progress_assessment.status == 'maintaining' %}exclamation-circle text-warning{% else %}x-circle text-danger{% endif %}"></i> 
+                    Progress Update
+                </h5>
+                <div class="row">
+                    <div class="col-md-8">
+                        <h4 class="mb-2">{{ progress_assessment.message }}</h4>
+                        <p class="mb-0">
+                            <strong>Weight Change:</strong> 
+                            <span class="{% if progress_assessment.weight_change < 0 %}text-success{% elif progress_assessment.weight_change > 0 %}text-danger{% else %}text-info{% endif %}">
+                                {{ progress_assessment.weight_change|floatformat:1 }} kg 
+                                ({{ progress_assessment.weight_change_pct|floatformat:1 }}%)
+                            </span>
+                        </p>
+                    </div>
+                    <div class="col-md-4 text-end">
+                        <span class="badge bg-{% if progress_assessment.status == 'excellent' %}success{% elif progress_assessment.status == 'good' %}info{% elif progress_assessment.status == 'maintaining' %}warning{% else %}danger{% endif %} p-3" style="font-size: 1.1rem;">
+                            {% if progress_assessment.status == 'excellent' %}Excellent!{% elif progress_assessment.status == 'good' %}Good Progress{% elif progress_assessment.status == 'maintaining' %}Maintaining{% else %}Needs Improvement{% endif %}
+                        </span>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endif %}
+
+<!-- Quick Consistency Summary -->
+<div class="row mb-4">
+    <div class="col-md-4">
+        <div class="card">
+            <div class="card-body">
+                <h5 class="card-title"><i class="bi bi-check2-circle text-success"></i> Consistency</h5>
+                <div class="d-flex align-items-center mb-2">
+                    <div class="progress flex-grow-1" style="height: 16px;">
+                        <div class="progress-bar bg-{% if consistency_summary.level == 'High' %}success{% elif consistency_summary.level == 'Moderate' %}warning{% else %}danger{% endif %}" style="width: {{ consistency_summary.score }}%;">
+                            {{ consistency_summary.score }}
+                        </div>
+                    </div>
+                    <span class="badge bg-light text-dark ms-2">{{ consistency_summary.level }}</span>
+                </div>
+                <p class="text-muted small mb-0">{{ consistency_summary.summary }}</p>
+                <a href="{% url 'dashboard_insights' %}" class="small">See detailed insights →</a>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-8">
+        <div class="card">
+            <div class="card-body">
+                <h5 class="card-title"><i class="bi bi-graph-up"></i> Recent Health Data (latest 7)</h5>
+                {% if recent_data %}
+                <div class="table-responsive">
+                    <table class="table table-sm table-hover mb-0">
+                        <thead>
+                            <tr>
+                                <th>Date</th>
+                                <th>Weight</th>
+                                <th>Sleep</th>
+                                <th>Exercise</th>
+                                <th>Calories</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for data in recent_data %}
+                            <tr>
+                                <td>{{ data.date|date:"M d, Y" }}</td>
+                                <td>{{ data.weight }}</td>
+                                <td>{{ data.sleep_hours|default:"-" }}</td>
+                                <td>{{ data.exercise_minutes|default:"-" }}</td>
+                                <td>{{ data.total_calories|default:"-"|floatformat:0 }}</td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+                {% else %}
+                    <p class="text-muted mb-0">No health data yet. Start logging to see trends.</p>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Lifestyle Risk (non-diagnostic) -->
+<div class="row mb-4">
+    <div class="col-md-12">
+        <div class="card">
+            <div class="card-body">
+                <h5 class="card-title d-flex justify-content-between align-items-center">
+                    <span><i class="bi bi-heart-pulse text-danger"></i> Lifestyle Risk (not a diagnosis)</span>
+                    <small class="text-muted">Based on BMI trend, sleep, exercise, calories, consistency, and drifts.</small>
+                </h5>
+                {% if lifestyle_risks %}
+                <div class="row">
+                    {% for risk in lifestyle_risks %}
+                    <div class="col-md-4 mb-3">
+                        <div class="card border-light">
+                            <div class="card-body">
+                                <h6 class="mb-2">{{ risk.condition }}
+                                    <span class="badge bg-{% if risk.risk_level == 'High' %}danger{% elif risk.risk_level == 'Moderate' %}warning{% else %}success{% endif %}">{{ risk.risk_level }}</span>
+                                </h6>
+                                <ul class="small text-muted mb-2">
+                                    {% for d in risk.drivers %}
+                                    <li>{{ d }}</li>
+                                    {% endfor %}
+                                </ul>
+                                <p class="text-muted small mb-0"><i class="bi bi-info-circle"></i> {{ risk.disclaimer }}</p>
+                            </div>
+                        </div>
+                    </div>
+                    {% endfor %}
+                </div>
+                {% else %}
+                    <p class="text-muted mb-0">Add a few days of data to see lifestyle-based risk estimates.</p>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Shortcuts -->
+<div class="row mb-4">
+    <div class="col-md-3">
+        <a class="card text-decoration-none" href="{% url 'dashboard_activity' %}">
+            <div class="card-body">
+                <h6 class="card-title"><i class="bi bi-activity text-primary"></i> Activity & Sleep</h6>
+                <p class="text-muted small mb-0">Log weight, sleep, exercise and see trends.</p>
+            </div>
+        </a>
+    </div>
+    <div class="col-md-3">
+        <a class="card text-decoration-none" href="{% url 'dashboard_nutrition' %}">
+            <div class="card-body">
+                <h6 class="card-title"><i class="bi bi-egg-fried text-warning"></i> Nutrition</h6>
+                <p class="text-muted small mb-0">Track meals, macros, and daily calories.</p>
+            </div>
+        </a>
+    </div>
+    <div class="col-md-3">
+        <a class="card text-decoration-none" href="{% url 'dashboard_alerts' %}">
+            <div class="card-body">
+                <h6 class="card-title"><i class="bi bi-exclamation-triangle text-danger"></i> Alerts</h6>
+                <p class="text-muted small mb-0">View risks, predictions, and reminders.</p>
+            </div>
+        </a>
+    </div>
+    <div class="col-md-3">
+        <a class="card text-decoration-none" href="{% url 'dashboard_insights' %}">
+            <div class="card-body">
+                <h6 class="card-title"><i class="bi bi-lightbulb text-info"></i> Insights</h6>
+                <p class="text-muted small mb-0">Consistency, drift, and effort-to-impact.</p>
+            </div>
+        </a>
+    </div>
+</div>
+{% endblock %}
+

@@ -1,0 +1,152 @@
+{% extends 'base.html' %}
+
+{% block title %}Habit Analysis - Health Recommendation System{% endblock %}
+
+{% block content %}
+<div class="row mb-4">
+    <div class="col-md-12">
+        <nav aria-label="breadcrumb">
+            <ol class="breadcrumb">
+                <li class="breadcrumb-item"><a href="{% url 'analytics' %}">Analytics</a></li>
+                <li class="breadcrumb-item active" aria-current="page">Habits</li>
+            </ol>
+        </nav>
+        <h2 class="text-white">
+            <i class="bi bi-shield-check"></i> Habit Sensitivity Analysis
+        </h2>
+        <p class="text-white-50">Analyze habit fragility, resilience, and impact</p>
+    </div>
+</div>
+
+<div class="row">
+    <div class="col-md-12 mb-4">
+        <div class="card shadow">
+            <div class="card-body">
+                <div class="d-flex justify-content-between align-items-center mb-4">
+                    <h5 class="card-title mb-0">Habit Analysis Results</h5>
+                    <form method="post" action="{% url 'analytics_habits' %}">
+                        {% csrf_token %}
+                        {% if not has_sufficient_data %}
+                        <button type="submit" class="btn btn-info text-white" disabled>
+                            <i class="bi bi-magic"></i> Analyze Habits
+                        </button>
+                        {% else %}
+                        <button type="submit" class="btn btn-info text-white">
+                            <i class="bi bi-magic"></i> Analyze Habits
+                        </button>
+                        {% endif %}
+                    </form>
+                </div>
+
+                {% if not has_sufficient_data %}
+                <div class="alert alert-warning">
+                    <i class="bi bi-info-circle"></i>
+                    Insufficient data. Add more health entries to generate this analysis.
+                </div>
+                {% endif %}
+
+                {% if habit_analysis %}
+                <div id="results" class="fade-in">
+
+                    <!-- Fragile Habits -->
+                    <div class="mb-5">
+                        <h5 class="text-danger border-bottom pb-2 mb-3"><i class="bi bi-exclamation-octagon"></i>
+                            Fragile Habits (Needs Attention)</h5>
+                        <div class="row">
+                            {% for habit in habit_analysis.fragile_habits %}
+                            <div class="col-md-6 mb-3">
+                                <div class="card border-danger h-100">
+                                    <div class="card-body">
+                                        <h6 class="fw-bold">{{ habit.name }}</h6>
+                                        <div class="mb-2">
+                                            <span class="badge bg-danger">Fragility: {{ habit.fragility_score }}%</span>
+                                            <span class="badge bg-info">Impact: {{ habit.impact_score }}%</span>
+                                        </div>
+                                        <p class="small text-muted mb-2">Freq: {{ habit.frequency }}% | {{
+                                            habit.duration_days }} days</p>
+                                        <div class="bg-light p-2 rounded small">
+                                            <ul class="list-unstyled mb-0">
+                                                {% for rec in habit.recommendations %}
+                                                <li><i class="bi bi-arrow-right-short text-danger"></i> {{ rec }}</li>
+                                                {% endfor %}
+                                            </ul>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                            {% empty %}
+                            <div class="col-12">
+                                <p class="text-muted">No fragile habits detected. Great job!</p>
+                            </div>
+                            {% endfor %}
+                        </div>
+                    </div>
+
+                    <!-- Resilient Habits -->
+                    <div class="mb-5">
+                        <h5 class="text-success border-bottom pb-2 mb-3"><i class="bi bi-check-circle"></i> Resilient
+                            Habits (Well Established)</h5>
+                        <div class="row">
+                            {% for habit in habit_analysis.resilient_habits %}
+                            <div class="col-md-4 mb-3">
+                                <div class="card border-success h-100">
+                                    <div class="card-body">
+                                        <h6 class="fw-bold">{{ habit.name }}</h6>
+                                        <div class="mb-2">
+                                            <span class="badge bg-success">Resilient</span>
+                                            <span class="badge bg-primary">Impact: {{ habit.impact_score }}%</span>
+                                        </div>
+                                        <p class="small text-muted mb-0">Consistent for {{ habit.duration_days }} days
+                                        </p>
+                                    </div>
+                                </div>
+                            </div>
+                            {% empty %}
+                            <div class="col-12">
+                                <p class="text-muted">Keep tracking to build resilient habits.</p>
+                            </div>
+                            {% endfor %}
+                        </div>
+                    </div>
+
+                    <!-- High Impact -->
+                    <div class="mb-3">
+                        <h5 class="text-primary border-bottom pb-2 mb-3"><i class="bi bi-star"></i> High Impact Areas
+                        </h5>
+                        <div class="row">
+                            {% for habit in habit_analysis.high_impact_habits %}
+                            <div class="col-md-6 mb-3">
+                                <div class="card border-primary h-100 bg-primary bg-opacity-10">
+                                    <div class="card-body">
+                                        <div class="d-flex justify-content-between">
+                                            <h6 class="fw-bold">{{ habit.name }}</h6>
+                                            <span class="badge bg-primary">Impact: {{ habit.impact_score }}%</span>
+                                        </div>
+                                        <p class="small mb-0 mt-2">Focusing on this habit yields the highest health
+                                            returns.</p>
+                                    </div>
+                                </div>
+                            </div>
+                            {% endfor %}
+                        </div>
+                    </div>
+
+                    <p class="text-end text-muted small mt-3">
+                        <i class="bi bi-info-circle"></i>
+                        Total habits analyzed: {{ habit_analysis.total_habits_analyzed }}
+                    </p>
+                </div>
+                {% else %}
+                {% if has_sufficient_data %}
+                <div class="text-center py-5">
+                    <i class="bi bi-shield-check text-muted" style="font-size: 4rem;"></i>
+                    <h4 class="mt-3 text-muted">No habit analysis yet</h4>
+                    <p class="text-muted">Click "Analyze Habits" to assess your behavioral patterns.</p>
+                </div>
+                {% endif %}
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

@@ -1,0 +1,1184 @@
+{% extends 'base.html' %}
+
+{% block title %}Dashboard - Health Recommendation System{% endblock %}
+
+
+{% block content %}
+<div class="row mb-4">
+    <div class="col-md-12">
+        <h2 class="text-white">
+            <i class="bi bi-speedometer2"></i> Welcome, {{ user.username }}!
+        </h2>
+    </div>
+</div>
+
+<!-- Stats Cards -->
+<div class="row mb-4">
+    <div class="col-md-3">
+        <div class="stat-card">
+            <h3>{{ profile.bmi|floatformat:1 }}</h3>
+            <p><i class="bi bi-graph-up"></i> BMI</p>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="stat-card" style="background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);">
+            <h3>{{ profile.bmr|floatformat:0 }}</h3>
+            <p><i class="bi bi-fire"></i> BMR (cal/day)</p>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="stat-card" style="background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%);">
+            <h3>{{ profile.tdee|floatformat:0 }}</h3>
+            <p><i class="bi bi-lightning-charge"></i> TDEE (cal/day)</p>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="stat-card" style="background: linear-gradient(135deg, #43e97b 0%, #38f9d7 100%);">
+            <h3>{{ profile.health_goal|title }}</h3>
+            <p><i class="bi bi-bullseye"></i> Goal</p>
+        </div>
+    </div>
+</div>
+
+<!-- Consistency / Drift / Effort -->
+<div class="row mb-4">
+    <div class="col-md-4">
+        <div class="card">
+            <div class="card-body">
+                <h5 class="card-title">
+                    <i class="bi bi-check2-circle text-success"></i> Health Consistency
+                </h5>
+                <div class="d-flex align-items-center mb-2">
+                    <div style="width: 70%;">
+                        <div class="progress" style="height: 18px;">
+                            <div class="progress-bar bg-{% if consistency_summary.level == 'High' %}success{% elif consistency_summary.level == 'Moderate' %}warning{% else %}danger{% endif %}" role="progressbar" style="width: {{ consistency_summary.score }}%;">
+                                {{ consistency_summary.score }}
+                            </div>
+                        </div>
+                    </div>
+                    <span class="badge bg-light text-dark ms-2">{{ consistency_summary.level }}</span>
+                </div>
+                <p class="mb-1 text-muted small">{{ consistency_summary.summary }}</p>
+                <ul class="mb-0 small">
+                    <li>Sleep: {{ consistency_summary.details.sleep_score|default:"-" }} / 100</li>
+                    <li>Exercise: {{ consistency_summary.details.exercise_score|default:"-" }} / 100</li>
+                    <li>Diet: {{ consistency_summary.details.diet_score|default:"-" }} / 100</li>
+                    <li>Logging: {{ consistency_summary.details.logging_score|default:"-" }} / 100 ({{ consistency_summary.details.missed_days }} missed days)</li>
+                </ul>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-4">
+        <div class="card">
+            <div class="card-body">
+                <h5 class="card-title">
+                    <i class="bi bi-activity text-danger"></i> Health Drift Detection
+                </h5>
+                {% if drift_alerts %}
+                    <ul class="list-unstyled mb-0">
+                        {% for drift in drift_alerts %}
+                        <li class="mb-2">
+                            <span class="badge bg-{% if drift.severity == 'High' %}danger{% else %}warning{% endif %}">{{ drift.metric }}</span>
+                            <div class="small">{{ drift.message }}</div>
+                        </li>
+                        {% endfor %}
+                    </ul>
+                {% else %}
+                    <p class="text-muted mb-0 small">No negative drift spotted in recent weeks.</p>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+    <div class="col-md-4">
+        <div class="card">
+            <div class="card-body">
+                <h5 class="card-title">
+                    <i class="bi bi-lightning-charge text-primary"></i> Effort → Impact Picks
+                </h5>
+                {% if effort_actions %}
+                    <ol class="mb-0 small">
+                        {% for action in effort_actions %}
+                        <li class="mb-2">
+                            <strong>{{ action.title }}</strong>
+                            <div class="text-muted">{{ action.explanation }}</div>
+                            <span class="badge bg-light text-dark">Effort: {{ action.effort_minutes }} min</span>
+                            <span class="badge bg-success">Impact/Effort: {{ action.ratio }}</span>
+                        </li>
+                        {% endfor %}
+                    </ol>
+                {% else %}
+                    <p class="text-muted mb-0 small">Add more data to unlock personalized quick wins.</p>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="row">
+    <!-- Recommendations Section -->
+    <div class="col-md-6 mb-4">
+        <div class="card">
+            <div class="card-body">
+                <h5 class="card-title">
+                    <i class="bi bi-lightbulb text-warning"></i> Active Recommendations
+                </h5>
+                {% if recommendations %}
+                    {% for rec in recommendations %}
+                    <div class="card recommendation-card mb-3">
+                        <div class="card-body">
+                            <h6 class="card-title">
+                                <span class="badge bg-primary">{{ rec.recommendation_type|title }}</span>
+                                {{ rec.title }}
+                            </h6>
+                            <p class="card-text text-muted">{{ rec.description }}</p>
+                            <small class="text-muted">{{ rec.created_at|date:"M d, Y" }}</small>
+                        </div>
+                    </div>
+                    {% endfor %}
+                {% else %}
+                    <p class="text-muted">No active recommendations. <a href="{% url 'recommendations' %}">Generate recommendations</a></p>
+                {% endif %}
+                <a href="{% url 'recommendations' %}" class="btn btn-primary mt-2">
+                    <i class="bi bi-arrow-right"></i> View All Recommendations
+                </a>
+            </div>
+        </div>
+    </div>
+
+    <!-- Add Health Data -->
+    <div class="col-md-6 mb-4">
+        <div class="card">
+            <div class="card-body">
+                <h5 class="card-title">
+                    <i class="bi bi-plus-circle text-success"></i> Add Health Data
+                </h5>
+                <form id="healthDataForm">
+                    {% csrf_token %}
+                    <div class="mb-3">
+                        <label class="form-label">Weight (kg)</label>
+                        <input type="number" class="form-control" name="weight" step="0.1" required>
+                    </div>
+                    <div class="row">
+                        <div class="col-md-6 mb-3">
+                            <label class="form-label">Sleep Hours</label>
+                            <input type="number" class="form-control" name="sleep_hours" step="0.5" min="0" max="24">
+                        </div>
+                        <div class="col-md-6 mb-3">
+                            <label class="form-label">Exercise (minutes)</label>
+                            <input type="number" class="form-control" name="exercise_minutes" min="0">
+                        </div>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Water Intake (liters)</label>
+                        <input type="number" class="form-control" name="water_intake_liters" step="0.1" min="0" max="10" placeholder="e.g., 2.5">
+                        <small class="text-muted">Recommended: 2-3 liters per day</small>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Calories Consumed (Manual)</label>
+                        <input type="number" class="form-control" name="calories_consumed" min="0">
+                        <small class="text-muted">Leave empty if tracking food below</small>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Notes</label>
+                        <textarea class="form-control" name="notes" rows="2"></textarea>
+                    </div>
+                    <button type="submit" class="btn btn-success w-100">
+                        <i class="bi bi-check-circle"></i> Save Data
+                    </button>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Food Tracking Section -->
+<div class="row mb-4">
+    <div class="col-md-12">
+        <div class="card">
+            <div class="card-body">
+                <h5 class="card-title">
+                    <i class="bi bi-egg-fried text-warning"></i> Food Tracking - {{ today|date:"M d, Y" }}
+                </h5>
+                
+                <!-- Nutrition Summary -->
+                {% if today_health_data %}
+                <div class="row mb-4">
+                    <div class="col-md-12">
+                        <h6>Today's Nutrition Summary</h6>
+                        <div class="row">
+                            <div class="col-md-2">
+                                <div class="stat-card" style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); padding: 15px;">
+                                    <h4>{{ today_health_data.total_calories|floatformat:0 }}</h4>
+                                    <p class="mb-0">Calories</p>
+                                </div>
+                            </div>
+                            <div class="col-md-2">
+                                <div class="stat-card" style="background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%); padding: 15px;">
+                                    <h4>{{ today_health_data.total_protein|floatformat:0 }}g</h4>
+                                    <p class="mb-0">Protein</p>
+                                </div>
+                            </div>
+                            <div class="col-md-2">
+                                <div class="stat-card" style="background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%); padding: 15px;">
+                                    <h4>{{ today_health_data.total_carbs|floatformat:0 }}g</h4>
+                                    <p class="mb-0">Carbs</p>
+                                </div>
+                            </div>
+                            <div class="col-md-2">
+                                <div class="stat-card" style="background: linear-gradient(135deg, #43e97b 0%, #38f9d7 100%); padding: 15px;">
+                                    <h4>{{ today_health_data.total_fats|floatformat:0 }}g</h4>
+                                    <p class="mb-0">Fats</p>
+                                </div>
+                            </div>
+                            <div class="col-md-2">
+                                <div class="stat-card" style="background: linear-gradient(135deg, #fa709a 0%, #fee140 100%); padding: 15px;">
+                                    <h4>{{ today_health_data.total_fiber|floatformat:0 }}g</h4>
+                                    <p class="mb-0">Fiber</p>
+                                </div>
+                            </div>
+                            <div class="col-md-2">
+                                <div class="stat-card" style="background: linear-gradient(135deg, #30cfd0 0%, #330867 100%); padding: 15px;">
+                                    <h4>{{ today_health_data.water_intake_liters|default:"0"|floatformat:1 }}L</h4>
+                                    <p class="mb-0">Water</p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                {% endif %}
+                
+                <!-- Add Food Entry -->
+                <div class="card mb-3">
+                    <div class="card-body">
+                        <h6><i class="bi bi-plus-circle"></i> Add Food Entry</h6>
+                        <small class="text-muted d-block mb-2">
+                            <i class="bi bi-info-circle"></i> You can add multiple items for each meal (breakfast, lunch, dinner, snacks)
+                        </small>
+                        <form id="foodEntryForm">
+                            {% csrf_token %}
+                            <div class="row">
+                                <div class="col-md-3 mb-2">
+                                    <select class="form-select form-select-sm" name="meal_type" id="meal_type" required>
+                                        <option value="breakfast">Breakfast</option>
+                                        <option value="lunch">Lunch</option>
+                                        <option value="dinner">Dinner</option>
+                                        <option value="snacks">Snacks</option>
+                                    </select>
+                                </div>
+                                <div class="col-md-4 mb-2">
+                                    <input type="text" class="form-control form-control-sm" name="food_name" id="food_name" placeholder="Food name" required list="foodSuggestions">
+                                    <datalist id="foodSuggestions"></datalist>
+                                </div>
+                                <div class="col-md-2 mb-2">
+                                    <input type="number" class="form-control form-control-sm" name="quantity" id="quantity" step="0.1" min="0.1" value="1" required>
+                                </div>
+                                <div class="col-md-2 mb-2">
+                                    <select class="form-select form-select-sm" name="unit" id="unit">
+                                        <option value="serving">Serving</option>
+                                        <option value="gram">Gram</option>
+                                    </select>
+                                </div>
+                                <div class="col-md-1 mb-2">
+                                    <button type="submit" class="btn btn-primary btn-sm w-100" title="Add this food item">
+                                        <i class="bi bi-plus"></i>
+                                    </button>
+                                </div>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+                
+                <!-- Food Entries by Meal -->
+                <div class="row">
+                    <div class="col-md-6 mb-3">
+                        <div class="card">
+                            <div class="card-body">
+                                <h6><i class="bi bi-sunrise text-warning"></i> Breakfast</h6>
+                                {% if food_by_meal.breakfast %}
+                                    <ul class="list-group list-group-flush">
+                                        {% for entry in food_by_meal.breakfast %}
+                                        <li class="list-group-item d-flex justify-content-between align-items-center">
+                                            <div>
+                                                <strong>{{ entry.food_name }}</strong><br>
+                                                <small>{{ entry.quantity }} {{ entry.unit }} - {{ entry.total_calories|floatformat:0 }} cal</small>
+                                            </div>
+                                            <button class="btn btn-sm btn-danger" onclick="deleteFoodEntry({{ entry.id }})">
+                                                <i class="bi bi-trash"></i>
+                                            </button>
+                                        </li>
+                                        {% endfor %}
+                                    </ul>
+                                {% else %}
+                                    <p class="text-muted mb-0">No breakfast entries</p>
+                                {% endif %}
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-md-6 mb-3">
+                        <div class="card">
+                            <div class="card-body">
+                                <h6><i class="bi bi-sun text-info"></i> Lunch</h6>
+                                {% if food_by_meal.lunch %}
+                                    <ul class="list-group list-group-flush">
+                                        {% for entry in food_by_meal.lunch %}
+                                        <li class="list-group-item d-flex justify-content-between align-items-center">
+                                            <div>
+                                                <strong>{{ entry.food_name }}</strong><br>
+                                                <small>{{ entry.quantity }} {{ entry.unit }} - {{ entry.total_calories|floatformat:0 }} cal</small>
+                                            </div>
+                                            <button class="btn btn-sm btn-danger" onclick="deleteFoodEntry({{ entry.id }})">
+                                                <i class="bi bi-trash"></i>
+                                            </button>
+                                        </li>
+                                        {% endfor %}
+                                    </ul>
+                                {% else %}
+                                    <p class="text-muted mb-0">No lunch entries</p>
+                                {% endif %}
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-md-6 mb-3">
+                        <div class="card">
+                            <div class="card-body">
+                                <h6><i class="bi bi-moon text-primary"></i> Dinner</h6>
+                                {% if food_by_meal.dinner %}
+                                    <ul class="list-group list-group-flush">
+                                        {% for entry in food_by_meal.dinner %}
+                                        <li class="list-group-item d-flex justify-content-between align-items-center">
+                                            <div>
+                                                <strong>{{ entry.food_name }}</strong><br>
+                                                <small>{{ entry.quantity }} {{ entry.unit }} - {{ entry.total_calories|floatformat:0 }} cal</small>
+                                            </div>
+                                            <button class="btn btn-sm btn-danger" onclick="deleteFoodEntry({{ entry.id }})">
+                                                <i class="bi bi-trash"></i>
+                                            </button>
+                                        </li>
+                                        {% endfor %}
+                                    </ul>
+                                {% else %}
+                                    <p class="text-muted mb-0">No dinner entries</p>
+                                {% endif %}
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-md-6 mb-3">
+                        <div class="card">
+                            <div class="card-body">
+                                <h6><i class="bi bi-cup-straw text-success"></i> Snacks</h6>
+                                {% if food_by_meal.snacks %}
+                                    <ul class="list-group list-group-flush">
+                                        {% for entry in food_by_meal.snacks %}
+                                        <li class="list-group-item d-flex justify-content-between align-items-center">
+                                            <div>
+                                                <strong>{{ entry.food_name }}</strong><br>
+                                                <small>{{ entry.quantity }} {{ entry.unit }} - {{ entry.total_calories|floatformat:0 }} cal</small>
+                                            </div>
+                                            <button class="btn btn-sm btn-danger" onclick="deleteFoodEntry({{ entry.id }})">
+                                                <i class="bi bi-trash"></i>
+                                            </button>
+                                        </li>
+                                        {% endfor %}
+                                    </ul>
+                                {% else %}
+                                    <p class="text-muted mb-0">No snack entries</p>
+                                {% endif %}
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Recent Health Data -->
+<div class="row">
+    <div class="col-md-12">
+        <div class="card">
+            <div class="card-body">
+                <h5 class="card-title">
+                    <i class="bi bi-graph-up"></i> Recent Health Data
+                </h5>
+                {% if recent_data %}
+                <div class="table-responsive">
+                    <table class="table table-hover">
+                        <thead>
+                            <tr>
+                                <th>Date</th>
+                                <th>Weight (kg)</th>
+                                <th>Sleep (hrs)</th>
+                                <th>Exercise (min)</th>
+                                <th>Water (L)</th>
+                                <th>Calories</th>
+                                <th>Protein</th>
+                                <th>Carbs</th>
+                                <th>Fats</th>
+                                <th>Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for data in recent_data %}
+                            <tr id="data-row-{{ data.id }}">
+                                <td>{{ data.date|date:"M d, Y" }}</td>
+                                <td>{{ data.weight }}</td>
+                                <td>{{ data.sleep_hours|default:"-" }}</td>
+                                <td>{{ data.exercise_minutes|default:"-" }}</td>
+                                <td>{{ data.water_intake_liters|default:"-"|floatformat:1 }}</td>
+                                <td>{{ data.total_calories|default:"-"|floatformat:0 }}</td>
+                                <td>{{ data.total_protein|default:"-"|floatformat:0 }}g</td>
+                                <td>{{ data.total_carbs|default:"-"|floatformat:0 }}g</td>
+                                <td>{{ data.total_fats|default:"-"|floatformat:0 }}g</td>
+                                <td>
+                                    <button class="btn btn-sm btn-danger" onclick="deleteHealthData({{ data.id }})">
+                                        <i class="bi bi-trash"></i> Delete
+                                    </button>
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+                {% else %}
+                    <p class="text-muted">No health data recorded yet. Add your first entry above!</p>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Progress Assessment -->
+{% if progress_assessment.status != 'insufficient_data' %}
+<div class="row mb-4">
+    <div class="col-md-12">
+        <div class="card border-{% if progress_assessment.status == 'excellent' %}success{% elif progress_assessment.status == 'good' %}info{% elif progress_assessment.status == 'maintaining' %}warning{% else %}danger{% endif %}">
+            <div class="card-body">
+                <h5 class="card-title">
+                    <i class="bi bi-{% if progress_assessment.status == 'excellent' %}check-circle-fill text-success{% elif progress_assessment.status == 'good' %}check-circle text-info{% elif progress_assessment.status == 'maintaining' %}exclamation-circle text-warning{% else %}x-circle text-danger{% endif %}"></i> 
+                    Progress Update
+                </h5>
+                <div class="row">
+                    <div class="col-md-8">
+                        <h4 class="mb-2">{{ progress_assessment.message }}</h4>
+                        <p class="mb-0">
+                            <strong>Weight Change:</strong> 
+                            <span class="{% if progress_assessment.weight_change < 0 %}text-success{% elif progress_assessment.weight_change > 0 %}text-danger{% else %}text-info{% endif %}">
+                                {{ progress_assessment.weight_change|floatformat:1 }} kg 
+                                ({{ progress_assessment.weight_change_pct|floatformat:1 }}%)
+                            </span>
+                        </p>
+                    </div>
+                    <div class="col-md-4 text-end">
+                        <span class="badge bg-{% if progress_assessment.status == 'excellent' %}success{% elif progress_assessment.status == 'good' %}info{% elif progress_assessment.status == 'maintaining' %}warning{% else %}danger{% endif %} p-3" style="font-size: 1.2rem;">
+                            {% if progress_assessment.status == 'excellent' %}Excellent!{% elif progress_assessment.status == 'good' %}Good Progress{% elif progress_assessment.status == 'maintaining' %}Maintaining{% else %}Needs Improvement{% endif %}
+                        </span>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endif %}
+
+<!-- Risk Alerts -->
+{% if risk_alerts %}
+<div class="row mb-4">
+    <div class="col-md-12">
+        <div class="card border-danger">
+            <div class="card-body">
+                <h5 class="card-title text-danger">
+                    <i class="bi bi-exclamation-triangle-fill"></i> Health Risk Alerts
+                </h5>
+                {% for alert in risk_alerts %}
+                <div class="alert alert-{% if alert.risk_level == 'critical' or alert.risk_level == 'high' %}danger{% elif alert.risk_level == 'medium' %}warning{% else %}info{% endif %} alert-dismissible fade show" role="alert">
+                    <strong>{{ alert.get_risk_level_display }} - {{ alert.get_alert_type_display }}:</strong>
+                    <p class="mb-2">{{ alert.message }}</p>
+                    {% if alert.recommendations %}
+                    <ul class="mb-0">
+                        {% for rec in alert.recommendations %}
+                        <li>{{ rec }}</li>
+                        {% endfor %}
+                    </ul>
+                    {% endif %}
+                    <button type="button" class="btn-close" onclick="markAlertRead({{ alert.id }})" aria-label="Close"></button>
+                </div>
+                {% endfor %}
+            </div>
+        </div>
+    </div>
+</div>
+{% endif %}
+
+<!-- Disease Predictions -->
+{% if disease_predictions %}
+<div class="row mb-4">
+    <div class="col-md-12">
+        <div class="card border-warning">
+            <div class="card-body">
+                <h5 class="card-title">
+                    <i class="bi bi-heart-pulse text-warning"></i> Disease Risk Predictions
+                </h5>
+                <p class="text-muted">Based on your health data, here are potential health risks:</p>
+                {% for prediction in disease_predictions %}
+                <div class="card mb-3">
+                    <div class="card-body">
+                        <h6>
+                            {{ prediction.disease_type }}
+                            <span class="badge bg-{% if prediction.risk_level == 'high' %}danger{% elif prediction.risk_level == 'medium' %}warning{% else %}info{% endif %}">
+                                {{ prediction.get_risk_level_display }} ({{ prediction.risk_score|floatformat:1 }}%)
+                            </span>
+                        </h6>
+                        {% if prediction.factors %}
+                        <p class="mb-2"><strong>Factors:</strong></p>
+                        <ul class="mb-2">
+                            {% for factor in prediction.factors %}
+                            <li>{{ factor }}</li>
+                            {% endfor %}
+                        </ul>
+                        {% endif %}
+                        {% if prediction.recommendations %}
+                        <p class="mb-1"><strong>Recommendations:</strong></p>
+                        <ul class="mb-0">
+                            {% for rec in prediction.recommendations %}
+                            <li>{{ rec }}</li>
+                            {% endfor %}
+                        </ul>
+                        {% endif %}
+                    </div>
+                </div>
+                {% endfor %}
+                <button class="btn btn-warning" onclick="generateDiseasePrediction()">
+                    <i class="bi bi-arrow-clockwise"></i> Refresh Predictions
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+{% endif %}
+
+<!-- Reminders Section -->
+<div class="row mb-4">
+    <div class="col-md-6">
+        <div class="card">
+            <div class="card-body">
+                <h5 class="card-title">
+                    <i class="bi bi-bell text-primary"></i> Reminders
+                </h5>
+                {% if reminders %}
+                <div class="list-group">
+                    {% for reminder in reminders %}
+                    <div class="list-group-item d-flex justify-content-between align-items-center">
+                        <div>
+                            <strong>{{ reminder.get_reminder_type_display }}</strong> - {{ reminder.time|time:"H:i" }}
+                            {% if reminder.message %}
+                            <br><small class="text-muted">{{ reminder.message }}</small>
+                            {% endif %}
+                        </div>
+                        <div>
+                            <button class="btn btn-sm btn-{% if reminder.is_active %}success{% else %}secondary{% endif %}" 
+                                    onclick="toggleReminder({{ reminder.id }})">
+                                <i class="bi bi-{% if reminder.is_active %}check{% else %}x{% endif %}"></i>
+                            </button>
+                            <button class="btn btn-sm btn-danger" onclick="deleteReminder({{ reminder.id }})">
+                                <i class="bi bi-trash"></i>
+                            </button>
+                        </div>
+                    </div>
+                    {% endfor %}
+                </div>
+                {% else %}
+                <p class="text-muted">No reminders set. Create one below!</p>
+                {% endif %}
+                
+                <hr>
+                <h6>Create New Reminder</h6>
+                <form id="reminderForm">
+                    {% csrf_token %}
+                    <div class="mb-2">
+                        <select class="form-select form-select-sm" name="reminder_type" required>
+                            <option value="food">Food/Meal</option>
+                            <option value="water">Water</option>
+                            <option value="exercise">Exercise</option>
+                            <option value="medication">Medication</option>
+                            <option value="sleep">Sleep</option>
+                        </select>
+                    </div>
+                    <div class="mb-2">
+                        <input type="time" class="form-control form-control-sm" name="time" required>
+                    </div>
+                    <div class="mb-2">
+                        <input type="text" class="form-control form-control-sm" name="message" placeholder="Optional message">
+                    </div>
+                    <button type="submit" class="btn btn-primary btn-sm w-100">
+                        <i class="bi bi-plus-circle"></i> Add Reminder
+                    </button>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Recent Health Data -->
+<div class="row">
+    <div class="col-md-12">
+        <div class="card">
+            <div class="card-body">
+                <h5 class="card-title">
+                    <i class="bi bi-graph-up"></i> Recent Health Data
+                </h5>
+                {% if recent_data %}
+                <div class="table-responsive">
+                    <table class="table table-hover">
+                        <thead>
+                            <tr>
+                                <th>Date</th>
+                                <th>Weight (kg)</th>
+                                <th>Sleep (hrs)</th>
+                                <th>Exercise (min)</th>
+                                <th>Calories</th>
+                                <th>Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for data in recent_data %}
+                            <tr id="data-row-{{ data.id }}">
+                                <td>{{ data.date|date:"M d, Y" }}</td>
+                                <td>{{ data.weight }}</td>
+                                <td>{{ data.sleep_hours|default:"-" }}</td>
+                                <td>{{ data.exercise_minutes|default:"-" }}</td>
+                                <td>{{ data.calories_consumed|default:"-" }}</td>
+                                <td>
+                                    <button class="btn btn-sm btn-danger" onclick="deleteHealthData({{ data.id }})">
+                                        <i class="bi bi-trash"></i> Delete
+                                    </button>
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+                {% else %}
+                    <p class="text-muted">No health data recorded yet. Add your first entry above!</p>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Progress Charts -->
+{% if progress_data.weight_trend %}
+<div class="row mt-4">
+    <div class="col-md-12">
+        <div class="card">
+            <div class="card-body">
+                <h5 class="card-title">
+                    <i class="bi bi-bar-chart"></i> Progress Charts
+                </h5>
+                <canvas id="progressChart" height="80"></canvas>
+            </div>
+        </div>
+    </div>
+</div>
+{% endif %}
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    // Health Data Form Submission
+    document.getElementById('healthDataForm').addEventListener('submit', async function(e) {
+        e.preventDefault();
+        const formData = new FormData(this);
+        
+        try {
+            const response = await fetch('{% url "add_health_data" %}', {
+                method: 'POST',
+                body: formData,
+                headers: {
+                    'X-CSRFToken': formData.get('csrfmiddlewaretoken')
+                }
+            });
+            
+            const data = await response.json();
+            if (data.success) {
+                alert('Health data saved successfully!');
+                this.reset();
+                location.reload();
+            } else {
+                alert('Error: ' + data.error);
+            }
+        } catch (error) {
+            alert('Error saving data');
+        }
+    });
+
+    // Progress Chart
+    {% if progress_data.weight_trend %}
+    const ctx = document.getElementById('progressChart');
+    if (ctx) {
+        const weightData = {{ progress_data.weight_trend|safe }};
+        const sleepData = {{ progress_data.sleep_trend|safe }};
+        
+        new Chart(ctx, {
+            type: 'line',
+            data: {
+                labels: weightData.map(d => {
+                    const date = new Date(d.date);
+                    return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+                }),
+                datasets: [
+                    {
+                        label: 'Weight (kg)',
+                        data: weightData.map(d => d.weight),
+                        borderColor: 'rgb(99, 102, 241)',
+                        backgroundColor: 'rgba(99, 102, 241, 0.1)',
+                        borderWidth: 3,
+                        pointRadius: 5,
+                        pointHoverRadius: 7,
+                        pointBackgroundColor: 'rgb(99, 102, 241)',
+                        pointBorderColor: '#fff',
+                        pointBorderWidth: 2,
+                        tension: 0.4,
+                        fill: true
+                    },
+                    {% if progress_data.sleep_trend %}
+                    {
+                        label: 'Sleep (hours)',
+                        data: sleepData.map(d => d.hours),
+                        borderColor: 'rgb(59, 130, 246)',
+                        backgroundColor: 'rgba(59, 130, 246, 0.1)',
+                        borderWidth: 3,
+                        pointRadius: 5,
+                        pointHoverRadius: 7,
+                        pointBackgroundColor: 'rgb(59, 130, 246)',
+                        pointBorderColor: '#fff',
+                        pointBorderWidth: 2,
+                        tension: 0.4,
+                        fill: true,
+                        yAxisID: 'y1'
+                    }
+                    {% endif %}
+                ]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: true,
+                interaction: {
+                    intersect: false,
+                    mode: 'index'
+                },
+                plugins: {
+                    legend: {
+                        display: true,
+                        position: 'top',
+                        labels: {
+                            usePointStyle: true,
+                            padding: 15,
+                            font: {
+                                size: 14,
+                                weight: 'bold'
+                            }
+                        }
+                    },
+                    tooltip: {
+                        backgroundColor: 'rgba(0, 0, 0, 0.8)',
+                        padding: 12,
+                        titleFont: {
+                            size: 14,
+                            weight: 'bold'
+                        },
+                        bodyFont: {
+                            size: 13
+                        },
+                        borderColor: 'rgba(255, 255, 255, 0.1)',
+                        borderWidth: 1,
+                        displayColors: true,
+                        callbacks: {
+                            label: function(context) {
+                                let label = context.dataset.label || '';
+                                if (label) {
+                                    label += ': ';
+                                }
+                                label += context.parsed.y;
+                                if (context.dataset.label.includes('Weight')) {
+                                    label += ' kg';
+                                } else if (context.dataset.label.includes('Sleep')) {
+                                    label += ' hrs';
+                                }
+                                return label;
+                            }
+                        }
+                    }
+                },
+                scales: {
+                    x: {
+                        display: true,
+                        title: {
+                            display: true,
+                            text: 'Date',
+                            font: {
+                                size: 13,
+                                weight: 'bold'
+                            },
+                            padding: {top: 10, bottom: 0}
+                        },
+                        grid: {
+                            display: true,
+                            color: 'rgba(0, 0, 0, 0.05)'
+                        },
+                        ticks: {
+                            font: {
+                                size: 11
+                            },
+                            maxRotation: 45,
+                            minRotation: 0
+                        }
+                    },
+                    y: {
+                        beginAtZero: false,
+                        display: true,
+                        title: {
+                            display: true,
+                            text: 'Weight (kg)',
+                            font: {
+                                size: 13,
+                                weight: 'bold'
+                            },
+                            padding: {top: 0, bottom: 10}
+                        },
+                        grid: {
+                            display: true,
+                            color: 'rgba(99, 102, 241, 0.1)'
+                        },
+                        ticks: {
+                            font: {
+                                size: 11
+                            },
+                            callback: function(value) {
+                                return value + ' kg';
+                            }
+                        }
+                    },
+                    {% if progress_data.sleep_trend %}
+                    y1: {
+                        type: 'linear',
+                        display: true,
+                        position: 'right',
+                        title: {
+                            display: true,
+                            text: 'Sleep (hours)',
+                            font: {
+                                size: 13,
+                                weight: 'bold'
+                            },
+                            padding: {top: 0, bottom: 10}
+                        },
+                        grid: {
+                            drawOnChartArea: false,
+                            color: 'rgba(59, 130, 246, 0.1)'
+                        },
+                        ticks: {
+                            font: {
+                                size: 11
+                            },
+                            callback: function(value) {
+                                return value + ' hrs';
+                            }
+                        }
+                    }
+                    {% endif %}
+                }
+            }
+        });
+    }
+    {% endif %}
+    
+    // Delete Health Data
+    async function deleteHealthData(dataId) {
+        if (!confirm('Are you sure you want to delete this health data entry?')) {
+            return;
+        }
+        
+        try {
+            const response = await fetch(`{% url "delete_health_data" 0 %}`.replace('0', dataId), {
+                method: 'POST',
+                headers: {
+                    'X-CSRFToken': '{{ csrf_token }}',
+                    'Content-Type': 'application/json'
+                }
+            });
+            
+            const data = await response.json();
+            if (data.success) {
+                document.getElementById(`data-row-${dataId}`).remove();
+                alert('Health data deleted successfully!');
+                location.reload();
+            } else {
+                alert('Error: ' + data.error);
+            }
+        } catch (error) {
+            alert('Error deleting data');
+        }
+    }
+    
+    // Reminder Form
+    document.getElementById('reminderForm').addEventListener('submit', async function(e) {
+        e.preventDefault();
+        const formData = new FormData(this);
+        
+        try {
+            const response = await fetch('{% url "create_reminder" %}', {
+                method: 'POST',
+                body: formData
+            });
+            
+            const data = await response.json();
+            if (data.success) {
+                alert('Reminder created successfully!');
+                this.reset();
+                location.reload();
+            } else {
+                alert('Error: ' + data.error);
+            }
+        } catch (error) {
+            alert('Error creating reminder');
+        }
+    });
+    
+    // Toggle Reminder
+    async function toggleReminder(reminderId) {
+        try {
+            const response = await fetch(`{% url "toggle_reminder" 0 %}`.replace('0', reminderId), {
+                method: 'POST',
+                headers: {
+                    'X-CSRFToken': '{{ csrf_token }}',
+                    'Content-Type': 'application/json'
+                }
+            });
+            
+            const data = await response.json();
+            if (data.success) {
+                location.reload();
+            }
+        } catch (error) {
+            alert('Error toggling reminder');
+        }
+    }
+    
+    // Delete Reminder
+    async function deleteReminder(reminderId) {
+        if (!confirm('Are you sure you want to delete this reminder?')) {
+            return;
+        }
+        
+        try {
+            const response = await fetch(`{% url "delete_reminder" 0 %}`.replace('0', reminderId), {
+                method: 'POST',
+                headers: {
+                    'X-CSRFToken': '{{ csrf_token }}',
+                    'Content-Type': 'application/json'
+                }
+            });
+            
+            const data = await response.json();
+            if (data.success) {
+                location.reload();
+            }
+        } catch (error) {
+            alert('Error deleting reminder');
+        }
+    }
+    
+    // Mark Alert as Read
+    async function markAlertRead(alertId) {
+        try {
+            const response = await fetch(`{% url "mark_alert_read" 0 %}`.replace('0', alertId), {
+                method: 'POST',
+                headers: {
+                    'X-CSRFToken': '{{ csrf_token }}',
+                    'Content-Type': 'application/json'
+                }
+            });
+            
+            const data = await response.json();
+            if (data.success) {
+                location.reload();
+            }
+        } catch (error) {
+            alert('Error marking alert as read');
+        }
+    }
+    
+    // Generate Disease Prediction
+    async function generateDiseasePrediction() {
+        const btn = event.target;
+        const originalText = btn.innerHTML;
+        btn.disabled = true;
+        btn.innerHTML = '<i class="bi bi-hourglass-split"></i> Generating...';
+        
+        const formData = new FormData();
+        formData.append('csrfmiddlewaretoken', '{{ csrf_token }}');
+        
+        try {
+            const response = await fetch('{% url "generate_disease_prediction" %}', {
+                method: 'POST',
+                body: formData
+            });
+            
+            const data = await response.json();
+            if (data.success) {
+                alert('Disease predictions updated!');
+                location.reload();
+            } else {
+                alert('Error: ' + data.error);
+                btn.disabled = false;
+                btn.innerHTML = originalText;
+            }
+        } catch (error) {
+            alert('Error generating predictions');
+            btn.disabled = false;
+            btn.innerHTML = originalText;
+        }
+    }
+    
+    // Check reminders and show notifications (client-side)
+    function checkReminders() {
+        const now = new Date();
+        const currentTime = now.getHours() * 60 + now.getMinutes();
+        
+        {% for reminder in reminders %}
+        {% if reminder.is_active %}
+        const reminderTimeStr{{ reminder.id }} = '{{ reminder.time|time:"H:i" }}';
+        const [reminderHour{{ reminder.id }}, reminderMin{{ reminder.id }}] = reminderTimeStr{{ reminder.id }}.split(':').map(Number);
+        const reminderTime{{ reminder.id }} = reminderHour{{ reminder.id }} * 60 + reminderMin{{ reminder.id }};
+        if (Math.abs(currentTime - reminderTime{{ reminder.id }}) < 5) {
+            if (Notification.permission === 'granted') {
+                new Notification('{{ reminder.get_reminder_type_display }} Reminder', {
+                    body: '{{ reminder.message|default:"Time for your reminder!" }}',
+                    icon: '/static/images/icon.png'
+                });
+            }
+        }
+        {% endif %}
+        {% endfor %}
+    }
+    
+    // Request notification permission
+    if ('Notification' in window && Notification.permission === 'default') {
+        Notification.requestPermission();
+    }
+    
+    // Check reminders every minute
+    setInterval(checkReminders, 60000);
+    
+    // Food Entry Form
+    const foodEntryForm = document.getElementById('foodEntryForm');
+    if (foodEntryForm) {
+        // Store original meal type and food name to keep them after adding
+        let lastMealType = '';
+        let lastFoodName = '';
+        
+        foodEntryForm.addEventListener('submit', async function(e) {
+            e.preventDefault();
+            const formData = new FormData(this);
+            const mealType = formData.get('meal_type');
+            const foodName = formData.get('food_name');
+            
+            // Store current values
+            lastMealType = mealType;
+            lastFoodName = foodName;
+            
+            // Add date
+            formData.append('date', '{{ today|date:"Y-m-d" }}');
+            
+            try {
+                const response = await fetch('{% url "add_food_entry" %}', {
+                    method: 'POST',
+                    body: formData
+                });
+                
+                const data = await response.json();
+                if (data.success) {
+                    // Show success message
+                    const successMsg = document.createElement('div');
+                    successMsg.className = 'alert alert-success alert-dismissible fade show mt-2';
+                    successMsg.innerHTML = `
+                        <i class="bi bi-check-circle"></i> Food entry added! You can add more items for ${mealType}.
+                        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+                    `;
+                    foodEntryForm.parentElement.insertBefore(successMsg, foodEntryForm.nextSibling);
+                    
+                    // Keep meal type and food name, only reset quantity
+                    document.getElementById('meal_type').value = lastMealType;
+                    document.getElementById('food_name').value = lastFoodName;
+                    document.getElementById('quantity').value = '1';
+                    
+                    // Reload page after a short delay to show updated data
+                    setTimeout(() => {
+                        location.reload();
+                    }, 1000);
+                } else {
+                    alert('Error: ' + data.error);
+                }
+            } catch (error) {
+                alert('Error adding food entry');
+            }
+        });
+    }
+    
+    // Load food suggestions when meal type changes
+    const mealTypeSelect = document.querySelector('[name="meal_type"]');
+    if (mealTypeSelect) {
+        mealTypeSelect.addEventListener('change', async function() {
+            const mealType = this.value;
+            const datalist = document.getElementById('foodSuggestions');
+            
+            try {
+                const response = await fetch(`{% url "get_food_suggestions" %}?meal_type=${mealType}`);
+                const data = await response.json();
+                
+                if (data.success && datalist) {
+                    datalist.innerHTML = '';
+                    data.suggestions.forEach(food => {
+                        const option = document.createElement('option');
+                        option.value = food;
+                        datalist.appendChild(option);
+                    });
+                }
+            } catch (error) {
+                console.error('Error loading food suggestions:', error);
+            }
+        });
+        
+        // Load initial suggestions
+        mealTypeSelect.dispatchEvent(new Event('change'));
+    }
+    
+    // Delete Food Entry
+    async function deleteFoodEntry(entryId) {
+        if (!confirm('Are you sure you want to delete this food entry?')) {
+            return;
+        }
+        
+        try {
+            const response = await fetch(`{% url "delete_food_entry" 0 %}`.replace('0', entryId), {
+                method: 'POST',
+                headers: {
+                    'X-CSRFToken': '{{ csrf_token }}',
+                    'Content-Type': 'application/json'
+                }
+            });
+            
+            const data = await response.json();
+            if (data.success) {
+                alert('Food entry deleted successfully!');
+                location.reload();
+            } else {
+                alert('Error: ' + data.error);
+            }
+        } catch (error) {
+            alert('Error deleting food entry');
+        }
+    }
+</script>
+{% endblock %}
+

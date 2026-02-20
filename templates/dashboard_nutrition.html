@@ -1,0 +1,325 @@
+{% extends 'base.html' %}
+
+{% block title %}Dashboard - Nutrition{% endblock %}
+
+{% block content %}
+<div class="row mb-4 mt-2">
+    <div class="col-md-12 d-flex justify-content-between align-items-center">
+        <div>
+            <h2 class="text-white mb-1"><i class="bi bi-egg-fried text-warning"></i> Welcome, {{ user.username }}!</h2>
+            <p class="text-light mb-0">Nutrition · Track meals, macros, and daily calories.</p>
+        </div>
+        <a class="btn btn-outline-light btn-sm" href="{% url 'dashboard_overview' %}">Back to Overview</a>
+    </div>
+</div>
+
+<!-- Today's Nutrition Summary -->
+{% if today_health_data %}
+<div class="row mb-3">
+    <div class="col-md-12">
+        <div class="card">
+            <div class="card-body">
+                <h5 class="card-title">Nutrition Summary ({{ selected_date|date:"M d, Y" }})</h5>
+                <div class="row">
+                    <div class="col-md-2">
+                        <div class="stat-card" style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); padding: 15px;">
+                            <h4>{{ today_health_data.total_calories|floatformat:0 }}</h4>
+                            <p class="mb-0">Calories</p>
+                        </div>
+                    </div>
+                    <div class="col-md-2">
+                        <div class="stat-card" style="background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%); padding: 15px;">
+                            <h4>{{ today_health_data.total_protein|floatformat:0 }}g</h4>
+                            <p class="mb-0">Protein</p>
+                        </div>
+                    </div>
+                    <div class="col-md-2">
+                        <div class="stat-card" style="background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%); padding: 15px;">
+                            <h4>{{ today_health_data.total_carbs|floatformat:0 }}g</h4>
+                            <p class="mb-0">Carbs</p>
+                        </div>
+                    </div>
+                    <div class="col-md-2">
+                        <div class="stat-card" style="background: linear-gradient(135deg, #43e97b 0%, #38f9d7 100%); padding: 15px;">
+                            <h4>{{ today_health_data.total_fats|floatformat:0 }}g</h4>
+                            <p class="mb-0">Fats</p>
+                        </div>
+                    </div>
+                    <div class="col-md-2">
+                        <div class="stat-card" style="background: linear-gradient(135deg, #fa709a 0%, #fee140 100%); padding: 15px;">
+                            <h4>{{ today_health_data.total_fiber|floatformat:0 }}g</h4>
+                            <p class="mb-0">Fiber</p>
+                        </div>
+                    </div>
+                    <div class="col-md-2">
+                        <div class="stat-card" style="background: linear-gradient(135deg, #30cfd0 0%, #330867 100%); padding: 15px;">
+                            <h4>{{ today_health_data.water_intake_liters|default:"0"|floatformat:1 }}L</h4>
+                            <p class="mb-0">Water</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endif %}
+
+<!-- Food Tracking -->
+<div class="row">
+    <div class="col-md-12">
+        <div class="card">
+            <div class="card-body">
+                <h5 class="card-title">
+                    <i class="bi bi-plus-circle"></i> Add Food Entry
+                </h5>
+                <small class="text-muted d-block mb-2">
+                    <i class="bi bi-info-circle"></i> Add items for each meal. We'll keep your meal type and name for quick multi-add.
+                </small>
+                <form id="foodEntryForm">
+                    {% csrf_token %}
+                    <div class="row mb-3">
+                        <div class="col-md-3">
+                            <label class="form-label small">Date</label>
+                            <input type="date" class="form-control form-control-sm" name="entry_date" id="entry_date" value="{{ selected_date|date:'Y-m-d' }}" required>
+                        </div>
+                    </div>
+                    <div class="row">
+                        <div class="col-md-3 mb-2">
+                            <label class="form-label small">Meal Type</label>
+                            <select class="form-select form-select-sm" name="meal_type" id="meal_type" required>
+                                <option value="breakfast">Breakfast</option>
+                                <option value="lunch">Lunch</option>
+                                <option value="dinner">Dinner</option>
+                                <option value="snacks">Snacks</option>
+                            </select>
+                        </div>
+                        <div class="col-md-4 mb-2">
+                            <label class="form-label small">Food Name</label>
+                            <input type="text" class="form-control form-control-sm" name="food_name" id="food_name" placeholder="Food name" required list="foodSuggestions">
+                            <datalist id="foodSuggestions"></datalist>
+                        </div>
+                        <div class="col-md-2 mb-2">
+                            <label class="form-label small">Quantity</label>
+                            <input type="number" class="form-control form-control-sm" name="quantity" id="quantity" step="0.1" min="0.1" value="1" required>
+                        </div>
+                        <div class="col-md-2 mb-2">
+                            <label class="form-label small">Unit</label>
+                            <select class="form-select form-select-sm" name="unit" id="unit">
+                                <option value="serving">Serving</option>
+                                <option value="gram">Gram</option>
+                            </select>
+                        </div>
+                        <div class="col-md-1 mb-2">
+                            <label class="form-label small">&nbsp;</label>
+                            <button type="submit" class="btn btn-primary btn-sm w-100" title="Add this food item">
+                                <i class="bi bi-plus"></i>
+                            </button>
+                        </div>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Food Entries by Meal -->
+<div class="row mt-3">
+    <div class="col-md-6 mb-3">
+        <div class="card">
+            <div class="card-body">
+                <h6><i class="bi bi-sunrise text-warning"></i> Breakfast</h6>
+                {% if food_by_meal.breakfast %}
+                    <ul class="list-group list-group-flush">
+                        {% for entry in food_by_meal.breakfast %}
+                        <li class="list-group-item d-flex justify-content-between align-items-center">
+                            <div>
+                                <strong>{{ entry.food_name }}</strong><br>
+                                <small>{{ entry.quantity }} {{ entry.unit }} - {{ entry.total_calories|floatformat:0 }} cal</small>
+                            </div>
+                            <button class="btn btn-sm btn-danger" onclick="deleteFoodEntry({{ entry.id }})">
+                                <i class="bi bi-trash"></i>
+                            </button>
+                        </li>
+                        {% endfor %}
+                    </ul>
+                {% else %}
+                    <p class="text-muted mb-0">No breakfast entries</p>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+    <div class="col-md-6 mb-3">
+        <div class="card">
+            <div class="card-body">
+                <h6><i class="bi bi-sun text-info"></i> Lunch</h6>
+                {% if food_by_meal.lunch %}
+                    <ul class="list-group list-group-flush">
+                        {% for entry in food_by_meal.lunch %}
+                        <li class="list-group-item d-flex justify-content-between align-items-center">
+                            <div>
+                                <strong>{{ entry.food_name }}</strong><br>
+                                <small>{{ entry.quantity }} {{ entry.unit }} - {{ entry.total_calories|floatformat:0 }} cal</small>
+                            </div>
+                            <button class="btn btn-sm btn-danger" onclick="deleteFoodEntry({{ entry.id }})">
+                                <i class="bi bi-trash"></i>
+                            </button>
+                        </li>
+                        {% endfor %}
+                    </ul>
+                {% else %}
+                    <p class="text-muted mb-0">No lunch entries</p>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+    <div class="col-md-6 mb-3">
+        <div class="card">
+            <div class="card-body">
+                <h6><i class="bi bi-moon text-primary"></i> Dinner</h6>
+                {% if food_by_meal.dinner %}
+                    <ul class="list-group list-group-flush">
+                        {% for entry in food_by_meal.dinner %}
+                        <li class="list-group-item d-flex justify-content-between align-items-center">
+                            <div>
+                                <strong>{{ entry.food_name }}</strong><br>
+                                <small>{{ entry.quantity }} {{ entry.unit }} - {{ entry.total_calories|floatformat:0 }} cal</small>
+                            </div>
+                            <button class="btn btn-sm btn-danger" onclick="deleteFoodEntry({{ entry.id }})">
+                                <i class="bi bi-trash"></i>
+                            </button>
+                        </li>
+                        {% endfor %}
+                    </ul>
+                {% else %}
+                    <p class="text-muted mb-0">No dinner entries</p>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+    <div class="col-md-6 mb-3">
+        <div class="card">
+            <div class="card-body">
+                <h6><i class="bi bi-cup-straw text-success"></i> Snacks</h6>
+                {% if food_by_meal.snacks %}
+                    <ul class="list-group list-group-flush">
+                        {% for entry in food_by_meal.snacks %}
+                        <li class="list-group-item d-flex justify-content-between align-items-center">
+                            <div>
+                                <strong>{{ entry.food_name }}</strong><br>
+                                <small>{{ entry.quantity }} {{ entry.unit }} - {{ entry.total_calories|floatformat:0 }} cal</small>
+                            </div>
+                            <button class="btn btn-sm btn-danger" onclick="deleteFoodEntry({{ entry.id }})">
+                                <i class="bi bi-trash"></i>
+                            </button>
+                        </li>
+                        {% endfor %}
+                    </ul>
+                {% else %}
+                    <p class="text-muted mb-0">No snack entries</p>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    // Reload page when date changes to show entries for that date
+    const dateInput = document.getElementById('entry_date');
+    if (dateInput) {
+        dateInput.addEventListener('change', function() {
+            const selectedDate = this.value;
+            window.location.href = `{% url 'dashboard_nutrition' %}?date=${selectedDate}`;
+        });
+    }
+
+    const foodEntryForm = document.getElementById('foodEntryForm');
+    if (foodEntryForm) {
+        let lastMealType = '';
+        let lastFoodName = '';
+        foodEntryForm.addEventListener('submit', async function(e) {
+            e.preventDefault();
+            const formData = new FormData(this);
+            const mealType = formData.get('meal_type');
+            const foodName = formData.get('food_name');
+            const entryDate = formData.get('entry_date');
+            lastMealType = mealType;
+            lastFoodName = foodName;
+            // Use the date from the date picker
+            formData.append('date', entryDate);
+            try {
+                const response = await fetch('{% url "add_food_entry" %}', {
+                    method: 'POST',
+                    body: formData
+                });
+                const data = await response.json();
+                if (data.success) {
+                    const successMsg = document.createElement('div');
+                    successMsg.className = 'alert alert-success alert-dismissible fade show mt-2';
+                    successMsg.innerHTML = `
+                        <i class="bi bi-check-circle"></i> Food entry added! You can add more items for ${mealType}.
+                        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+                    `;
+                    foodEntryForm.parentElement.insertBefore(successMsg, foodEntryForm.nextSibling);
+                    document.getElementById('meal_type').value = lastMealType;
+                    document.getElementById('food_name').value = lastFoodName;
+                    document.getElementById('quantity').value = '1';
+                    setTimeout(() => location.reload(), 900);
+                } else {
+                    alert('Error: ' + data.error);
+                }
+            } catch {
+                alert('Error adding food entry');
+            }
+        });
+    }
+
+    // Load food suggestions when meal type changes
+    const mealTypeSelect = document.querySelector('[name="meal_type"]');
+    if (mealTypeSelect) {
+        mealTypeSelect.addEventListener('change', async function() {
+            const mealType = this.value;
+            const datalist = document.getElementById('foodSuggestions');
+            try {
+                const response = await fetch(`{% url "get_food_suggestions" %}?meal_type=${mealType}`);
+                const data = await response.json();
+                if (data.success && datalist) {
+                    datalist.innerHTML = '';
+                    data.suggestions.forEach(food => {
+                        const option = document.createElement('option');
+                        option.value = food;
+                        datalist.appendChild(option);
+                    });
+                }
+            } catch (error) {
+                console.error('Error loading food suggestions:', error);
+            }
+        });
+        mealTypeSelect.dispatchEvent(new Event('change'));
+    }
+
+    // Delete Food Entry
+    async function deleteFoodEntry(entryId) {
+        if (!confirm('Delete this food entry?')) return;
+        try {
+            const response = await fetch(`{% url "delete_food_entry" 0 %}`.replace('0', entryId), {
+                method: 'POST',
+                headers: {
+                    'X-CSRFToken': '{{ csrf_token }}',
+                    'Content-Type': 'application/json'
+                }
+            });
+            const data = await response.json();
+            if (data.success) {
+                location.reload();
+            } else {
+                alert('Error: ' + data.error);
+            }
+        } catch {
+            alert('Error deleting food entry');
+        }
+    }
+</script>
+{% endblock %}
+
