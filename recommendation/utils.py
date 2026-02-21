@@ -4,6 +4,73 @@ Utility functions for recommendation system
 import statistics
 
 from .ml_models.diet_model import DietRecommendationModel
+
+
+def calculate_recovery_score(health_data, profile):
+    """
+    Health Recovery Score (0-100) from sleep, activity, calories, and stress proxy.
+    Stress is inferred from sleep quality and activity (smartwatch-style metric).
+    Returns dict: { 'score': int 0-100, 'label': str }
+    """
+    if health_data is None:
+        return {'score': None, 'label': 'No data'}
+
+    # Sleep quality: 0-30 points
+    sleep_hours = health_data.sleep_hours
+    if sleep_hours is None:
+        sleep_score = 0
+    elif 7 <= sleep_hours <= 8:
+        sleep_score = 30
+    elif 6 <= sleep_hours < 7 or 8 < sleep_hours <= 9:
+        sleep_score = 22
+    elif 5 <= sleep_hours < 6 or 9 < sleep_hours <= 10:
+        sleep_score = 14
+    else:
+        sleep_score = 5
+
+    # Activity: 0-25 points
+    exercise_minutes = health_data.exercise_minutes or 0
+    if exercise_minutes >= 30:
+        activity_score = 25
+    elif exercise_minutes >= 15:
+        activity_score = 18
+    elif exercise_minutes >= 1:
+        activity_score = 10
+    else:
+        activity_score = 0
+
+    # Calories vs TDEE: 0-25 points
+    tdee = profile.tdee
+    calories = health_data.total_calories or health_data.calories_consumed
+    if calories is None or tdee is None or tdee <= 0:
+        calorie_score = 12  # neutral when no data
+    else:
+        ratio = calories / tdee
+        if 0.85 <= ratio <= 1.15:
+            calorie_score = 25
+        elif 0.75 <= ratio <= 1.25:
+            calorie_score = 18
+        elif 0.6 <= ratio <= 1.4:
+            calorie_score = 10
+        else:
+            calorie_score = 5
+
+    # Stress proxy (0-20): recovery readiness from sleep + activity
+    stress_score = round((sleep_score / 30.0) * 10 + (activity_score / 25.0) * 10)
+
+    total = sleep_score + activity_score + calorie_score + stress_score
+    score = min(100, total)
+
+    if score >= 80:
+        label = 'Excellent'
+    elif score >= 60:
+        label = 'Good'
+    elif score >= 40:
+        label = 'Fair'
+    else:
+        label = 'Poor recovery'
+
+    return {'score': score, 'label': label}
 from .ml_models.exercise_model import ExerciseRecommendationModel
 from .ml_models.sleep_model import SleepRecommendationModel
 from .ml_models.recovery_stability_model import RecoveryStabilityModel

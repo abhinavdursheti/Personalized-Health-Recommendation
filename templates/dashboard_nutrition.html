@@ -64,6 +64,23 @@
 </div>
 {% endif %}
 
+<!-- Food Replacement Engine (compact) -->
+<div class="row mb-3">
+    <div class="col-md-12">
+        <div class="card border-success">
+            <div class="card-body py-3">
+                <h6 class="card-title mb-2"><i class="bi bi-arrow-repeat text-success"></i> Healthier alternatives</h6>
+                <div class="d-flex flex-wrap gap-2 align-items-center">
+                    <input type="text" class="form-control form-control-sm" id="foodReplacementInput" placeholder="e.g. Chicken biryani, Paratha..." style="max-width: 220px;">
+                    <button type="button" class="btn btn-success btn-sm" id="btnGetReplacements"><i class="bi bi-search"></i> Suggest</button>
+                    <div id="replacementResultsInline" class="d-flex flex-wrap gap-1 align-items-center" style="display: none;"></div>
+                </div>
+                <div id="replacementListInline" class="mt-2 small text-success" style="display: none;"></div>
+            </div>
+        </div>
+    </div>
+</div>
+
 <!-- Food Tracking -->
 <div class="row">
     <div class="col-md-12">
@@ -298,6 +315,30 @@
         });
         mealTypeSelect.dispatchEvent(new Event('change'));
     }
+
+    // Food Replacement (inline)
+    (function() {
+        const input = document.getElementById('foodReplacementInput');
+        const btn = document.getElementById('btnGetReplacements');
+        const listEl = document.getElementById('replacementListInline');
+        if (!input || !btn) return;
+        btn.addEventListener('click', async function() {
+            const food = input.value.trim();
+            if (!food) return;
+            btn.disabled = true;
+            try {
+                const url = '{% url "get_food_replacements" %}?food=' + encodeURIComponent(food);
+                const res = await fetch(url);
+                const data = await res.json();
+                if (data.success && data.alternatives && data.alternatives.length) {
+                    listEl.innerHTML = '<strong>Healthier options:</strong> ' +
+                        data.alternatives.map(function(a) { return a.name; }).join(' · ');
+                    listEl.style.display = 'block';
+                }
+            } catch (e) {}
+            btn.disabled = false;
+        });
+    })();
 
     // Delete Food Entry
     async function deleteFoodEntry(entryId) {

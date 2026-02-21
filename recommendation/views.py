@@ -8,12 +8,13 @@ from django.views.decorators.csrf import csrf_exempt
 import json
 
 from .models import UserProfile, HealthData, Recommendation, RecoveryStabilityAnalysis, BehaviorCorrelationAnalysis, HabitSensitivityAnalysis, Reminder, HealthRiskAlert, DiseasePrediction, FoodEntry
-from .food_database import calculate_nutrition, get_food_suggestions
+from .food_database import calculate_nutrition, get_food_suggestions, get_food_replacements
 from .utils import (
     generate_diet_recommendation, generate_exercise_recommendation, generate_sleep_recommendation,
     generate_recovery_stability_analysis, generate_correlation_analysis, generate_habit_sensitivity_analysis,
     assess_progress, assess_health_risks, predict_disease_risks, calculate_consistency_score,
-    detect_health_drift, suggest_effort_to_impact_actions, compute_lifestyle_risk_predictions
+    detect_health_drift, suggest_effort_to_impact_actions, compute_lifestyle_risk_predictions,
+    calculate_recovery_score,
 )
 from .ml_models.simulator_model import HealthSimulatorModel
 
@@ -97,6 +98,14 @@ def _build_dashboard_context(request):
                     recommendations=alert_data['recommendations']
                 )
 
+    # Health Recovery Score (today & yesterday)
+    from datetime import timedelta
+    today_data = HealthData.objects.filter(user=request.user, date=today).first()
+    yesterday = today - timedelta(days=1)
+    yesterday_data = HealthData.objects.filter(user=request.user, date=yesterday).first()
+    recovery_today = calculate_recovery_score(today_data, profile)
+    recovery_yesterday = calculate_recovery_score(yesterday_data, profile)
+
     return {
         'profile': profile,
         'recent_data': recent_data,
@@ -115,6 +124,8 @@ def _build_dashboard_context(request):
         'effort_actions': effort_actions,
         'health_data_list': health_data_list,
         'lifestyle_risks': lifestyle_risks,
+        'recovery_today': recovery_today,
+        'recovery_yesterday': recovery_yesterday,
     }
 
 
@@ -654,6 +665,20 @@ def get_food_suggestions_view(request):
     })
 
 
+@login_required
+def get_food_replacements_view(request):
+    """Get healthier food alternatives for a given food (Food Replacement Engine)"""
+    food = request.GET.get('food', '').strip()
+    if not food:
+        return JsonResponse({'success': False, 'error': 'Please enter a food name'}, status=400)
+    alternatives = get_food_replacements(food)
+    return JsonResponse({
+        'success': True,
+        'query': food,
+        'alternatives': alternatives,
+    })
+
+
 def register_view(request):
     """User registration"""
     if request.method == 'POST':
@@ -730,6 +755,14 @@ def analytics_recovery(request):
         
     health_data_list = list(HealthData.objects.filter(user=request.user).order_by('date'))
     has_sufficient_data = len(health_data_list) >= 1
+
+    from datetime import date, timedelta
+    today = date.today()
+    yesterday = today - timedelta(days=1)
+    today_data = HealthData.objects.filter(user=request.user, date=today).first()
+    yesterday_data = HealthData.objects.filter(user=request.user, date=yesterday).first()
+    recovery_today = calculate_recovery_score(today_data, profile)
+    recovery_yesterday = calculate_recovery_score(yesterday_data, profile)
     
     if request.method == 'POST':
         if not has_sufficient_data:
@@ -757,7 +790,9 @@ def analytics_recovery(request):
     
     return render(request, 'analytics_recovery.html', {
         'recovery_analysis': recovery_analysis,
-        'has_sufficient_data': has_sufficient_data
+        'has_sufficient_data': has_sufficient_data,
+        'recovery_today': recovery_today,
+        'recovery_yesterday': recovery_yesterday,
     })
 
 

@@ -231,102 +231,47 @@
     <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
     
     <script>
-        // Force all internal links to open in external browser by using target="_blank"
-        // This prevents Cursor from intercepting navigation
+        // Open in new tab ONLY for Recommendations and Analytics; rest open in same tab
         (function() {
+            function shouldOpenInNewTab(href) {
+                if (!href || href === '#') return false;
+                try {
+                    const url = new URL(href, window.location.origin);
+                    if (url.origin !== window.location.origin) return false;
+                    const path = url.pathname.replace(/\/$/, '') || '/';
+                    return path === '/recommendations' || path.startsWith('/recommendations/') ||
+                           path === '/analytics' || path.startsWith('/analytics/');
+                } catch (e) {
+                    if (href.startsWith('/recommendations') || href.startsWith('/analytics')) return true;
+                    return false;
+                }
+            }
+
             function processLinks() {
                 const links = document.querySelectorAll('a[href]');
-                const currentOrigin = window.location.origin;
-                
                 links.forEach(function(link) {
-                    // Skip special links
-                    if (link.hasAttribute('data-bs-toggle') || 
-                        link.getAttribute('href') === '#' ||
-                        link.classList.contains('dropdown-toggle') ||
-                        link.hasAttribute('download') ||
-                        link.hasAttribute('data-external') ||
-                        link.hasAttribute('data-no-external')) {
+                    if (link.hasAttribute('data-bs-toggle') || link.getAttribute('href') === '#' ||
+                        link.classList.contains('dropdown-toggle') || link.hasAttribute('download') ||
+                        link.hasAttribute('data-external') || link.hasAttribute('data-no-external')) {
                         return;
                     }
-                    
-                    try {
-                        const url = new URL(link.href, window.location.origin);
-                        // Force target="_blank" on all internal links
-                        if (url.origin === currentOrigin) {
-                            link.target = '_blank';
-                            link.rel = 'noopener noreferrer';
-                        }
-                    } catch (e) {
-                        // Handle relative URLs
-                        if (link.href && !link.href.startsWith('http://') && 
-                            !link.href.startsWith('https://') && 
-                            !link.href.startsWith('mailto:') && 
-                            !link.href.startsWith('tel:') &&
-                            !link.href.startsWith('javascript:')) {
-                            link.target = '_blank';
-                            link.rel = 'noopener noreferrer';
-                        }
+                    const href = link.getAttribute('href');
+                    if (shouldOpenInNewTab(link.href || href)) {
+                        link.target = '_blank';
+                        link.rel = 'noopener noreferrer';
+                    } else {
+                        link.removeAttribute('target');
+                        link.removeAttribute('rel');
                     }
                 });
             }
-            
-            // Process links immediately
+
             processLinks();
-            
-            // Process on DOM ready
             if (document.readyState === 'loading') {
                 document.addEventListener('DOMContentLoaded', processLinks);
             }
-            
-            // Watch for dynamically added links
             const observer = new MutationObserver(processLinks);
-            observer.observe(document.body, {
-                childList: true,
-                subtree: true
-            });
-            
-            // Also intercept clicks as backup
-            document.addEventListener('click', function(e) {
-                let target = e.target;
-                while (target && target.tagName !== 'A') {
-                    target = target.parentElement;
-                }
-                
-                if (target && target.tagName === 'A' && target.href) {
-                    // Skip special links
-                    if (target.hasAttribute('data-bs-toggle') || 
-                        target.getAttribute('href') === '#' ||
-                        target.classList.contains('dropdown-toggle') ||
-                        target.hasAttribute('download') ||
-                        target.hasAttribute('data-external') ||
-                        target.hasAttribute('data-no-external')) {
-                        return;
-                    }
-                    
-                    try {
-                        const url = new URL(target.href, window.location.origin);
-                        const currentUrl = new URL(window.location.href);
-                        
-                        // Force target="_blank" for internal links
-                        if (url.origin === currentUrl.origin && !target.hasAttribute('target')) {
-                            target.target = '_blank';
-                            target.rel = 'noopener noreferrer';
-                        }
-                    } catch (e) {
-                        // Handle relative URLs
-                        if (target.href && !target.href.startsWith('http://') && 
-                            !target.href.startsWith('https://') && 
-                            !target.href.startsWith('mailto:') && 
-                            !target.href.startsWith('tel:') &&
-                            !target.href.startsWith('javascript:')) {
-                            if (!target.hasAttribute('target')) {
-                                target.target = '_blank';
-                                target.rel = 'noopener noreferrer';
-                            }
-                        }
-                    }
-                }
-            }, true);
+            observer.observe(document.body, { childList: true, subtree: true });
         })();
     </script>
     

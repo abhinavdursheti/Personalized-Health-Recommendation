@@ -321,3 +321,154 @@ def get_food_suggestions(meal_type, dietary_preference='none'):
     
     return foods
 
+
+# Food Replacement Engine: map keywords/phrases to healthier alternatives
+# Keys are lowercased; we match if user input contains the key
+FOOD_REPLACEMENT_MAP = {
+    # Biryani / rice dishes
+    'biryani': [
+        'Brown rice pulao with vegetables',
+        'Grilled chicken + roti + dal',
+        'Millet bowl (foxtail or barnyard) with curry',
+        'Quinoa (Cooked) with Chicken Curry or Vegetable Curry',
+    ],
+    'chicken biryani': [
+        'Brown rice pulao with grilled chicken',
+        'Grilled chicken + roti + dal',
+        'Millet bowl with chicken curry',
+    ],
+    'mutton biryani': [
+        'Brown rice pulao with lean meat',
+        'Grilled chicken + roti',
+        'Millet bowl with dal',
+    ],
+    'fried rice': [
+        'Rice (Cooked) with Vegetable Curry (no extra oil)',
+        'Quinoa (Cooked) with stir-fried vegetables',
+        'Brown rice pulao',
+    ],
+    'pulao': [
+        'Brown rice pulao',
+        'Quinoa (Cooked) with vegetables',
+        'Millet bowl',
+    ],
+    # Fried / heavy items
+    'paratha': [
+        'Roti/Chapati (whole wheat)',
+        'Besan Chilla',
+        'Moong Dal Cheela',
+    ],
+    'aloo paratha': [
+        'Roti/Chapati with Dal (Lentils)',
+        'Besan Chilla',
+        'Moong Dal Cheela',
+    ],
+    'samosa': [
+        'Baked vegetable cutlet',
+        'Moong Dal Cheela',
+        'Fruits (Mixed) or Nuts (Mixed)',
+    ],
+    'pakora': [
+        'Besan Chilla',
+        'Steamed vegetables with Yogurt/Curd',
+        'Nuts (Mixed)',
+    ],
+    'bhatura': [
+        'Roti/Chapati',
+        'Idli',
+        'Dosa (with less oil)',
+    ],
+    'naan': [
+        'Roti/Chapati',
+        'Whole wheat phulka',
+    ],
+    # Sweets / desserts
+    'gulab jamun': [
+        'Fruits (Mixed)',
+        'Yogurt/Curd with honey',
+        'Apple or Banana',
+    ],
+    'jalebi': [
+        'Fruits (Mixed)',
+        'Oatmeal with banana',
+    ],
+    'kheer': [
+        'Yogurt/Curd',
+        'Fruits (Mixed)',
+        'Oatmeal with milk and nuts',
+    ],
+    # General
+    'white rice': [
+        'Rice (Cooked) in smaller portion + more vegetables',
+        'Quinoa (Cooked)',
+        'Brown rice pulao',
+    ],
+    'rice': [
+        'Quinoa (Cooked)',
+        'Brown rice pulao',
+        'Millet bowl',
+    ],
+    'curry': [
+        'Vegetable Curry or Chicken Curry with less oil',
+        'Dal (Lentils)',
+        'Salad with grilled protein',
+    ],
+    'pizza': [
+        'Roti/Chapati with Vegetable Curry',
+        'Salad with Chicken Breast (Grilled)',
+        'Besan Chilla with vegetables',
+    ],
+    'burger': [
+        'Grilled chicken + Salad',
+        'Roti/Chapati wrap with vegetables',
+        'Chicken Breast (Grilled) with Salad',
+    ],
+    'pasta': [
+        'Quinoa (Cooked) with vegetables',
+        'Dal (Lentils) with Roti/Chapati',
+        'Vegetable Curry with Rice (Cooked)',
+    ],
+    'bread': [
+        'Roti/Chapati',
+        'Oatmeal',
+        'Idli or Dosa',
+    ],
+    'dosa': [
+        'Idli (steamed)',
+        'Moong Dal Cheela',
+        'Besan Chilla',
+    ],
+}
+
+
+def get_food_replacements(food_query):
+    """
+    Suggest healthier alternatives for a given food.
+    Returns list of dicts: [{'name': '...', 'in_database': bool}, ...]
+    """
+    if not food_query or not food_query.strip():
+        return []
+    query = food_query.strip().lower()
+    alternatives = []
+    seen = set()
+    # Sort keys by length descending so longer matches (e.g. 'chicken biryani') win
+    for key in sorted(FOOD_REPLACEMENT_MAP.keys(), key=len, reverse=True):
+        if key in query or query in key:
+            for alt in FOOD_REPLACEMENT_MAP[key]:
+                alt_clean = alt.strip()
+                if alt_clean not in seen:
+                    seen.add(alt_clean)
+                    alternatives.append({
+                        'name': alt_clean,
+                        'in_database': alt_clean in FOOD_DATABASE,
+                    })
+            break  # Use first matching group only to avoid duplicates
+    # If no match, suggest generic healthier habits
+    if not alternatives:
+        alternatives = [
+            {'name': 'Add more vegetables and lean protein', 'in_database': False},
+            {'name': 'Choose grilled or steamed over fried', 'in_database': False},
+            {'name': 'Try smaller portion with Salad or Dal (Lentils)', 'in_database': False},
+        ]
+    return alternatives
+

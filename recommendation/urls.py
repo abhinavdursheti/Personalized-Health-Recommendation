@@ -48,5 +48,6 @@ urlpatterns = [
     path('api/add-food-entry/', views.add_food_entry, name='add_food_entry'),
     path('api/delete-food-entry/<int:entry_id>/', views.delete_food_entry, name='delete_food_entry'),
     path('api/get-food-suggestions/', views.get_food_suggestions_view, name='get_food_suggestions'),
+    path('api/get-food-replacements/', views.get_food_replacements_view, name='get_food_replacements'),
 ]
 
