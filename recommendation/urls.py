@@ -28,6 +28,9 @@ urlpatterns = [
     path('analytics/recovery/', views.analytics_recovery, name='analytics_recovery'),
     path('analytics/correlation/', views.analytics_correlation, name='analytics_correlation'),
     path('analytics/habits/', views.analytics_habits, name='analytics_habits'),
+    path('analytics/biological-age/', views.analytics_biological_age, name='analytics_biological_age'),
+    path('analytics/health-balance/', views.analytics_health_balance, name='analytics_health_balance'),
+    path('analytics/risk-momentum/', views.analytics_risk_momentum, name='analytics_risk_momentum'),
     
     # Simulator
     path('simulator/', views.simulator, name='simulator'),

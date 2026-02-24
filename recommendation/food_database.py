@@ -397,6 +397,21 @@ FOOD_REPLACEMENT_MAP = {
         'Fruits (Mixed)',
         'Oatmeal with milk and nuts',
     ],
+    'brownie': [
+        'Yogurt/Curd with a small piece of dark chocolate',
+        'Fruits (Mixed) with nuts',
+        'Oatmeal with cocoa (less sugar)',
+    ],
+    'cake': [
+        'Fruits (Mixed)',
+        'Yogurt/Curd with fruits',
+        'Small portion of dark chocolate with nuts',
+    ],
+    'dessert': [
+        'Fruits (Mixed)',
+        'Yogurt/Curd with a little honey',
+        'Banana with nuts',
+    ],
     # General
     'white rice': [
         'Rice (Cooked) in smaller portion + more vegetables',
@@ -437,6 +452,32 @@ FOOD_REPLACEMENT_MAP = {
         'Idli (steamed)',
         'Moong Dal Cheela',
         'Besan Chilla',
+    ],
+    # Sugary drinks / sodas
+    'pepsi': [
+        'Diet soda (occasionally, smaller portion)',
+        'Sparkling water with lemon',
+        'Unsweetened iced tea',
+    ],
+    'coke': [
+        'Diet soda (occasionally, smaller portion)',
+        'Sparkling water with lemon',
+        'Unsweetened iced tea',
+    ],
+    'cola': [
+        'Diet soda (occasionally, smaller portion)',
+        'Sparkling water with lemon',
+        'Unsweetened iced tea',
+    ],
+    'soft drink': [
+        'Sparkling water with lemon or lime',
+        'Unsweetened iced tea',
+        'Plain water plus a small fruit snack',
+    ],
+    'soda': [
+        'Sparkling water with lemon',
+        'Diet soda (occasionally)',
+        'Unsweetened iced tea',
     ],
 }
 

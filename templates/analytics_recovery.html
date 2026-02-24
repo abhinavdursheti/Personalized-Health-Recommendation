@@ -113,6 +113,28 @@
                         </div>
                     </div>
 
+                    {% if stability_index.score %}
+                    <div class="card bg-light border-0 mb-4">
+                        <div class="card-body">
+                            <h5 class="card-title mb-2">
+                                <i class="bi bi-shield-check text-primary"></i>
+                                Health Stability Index
+                                <span class="badge bg-primary ms-2">{{ stability_index.score }}/100</span>
+                            </h5>
+                            <p class="text-muted mb-1">
+                                Predictive behavior score from variation in sleep, weight, mood (proxy), and calories.
+                                Low stability = higher future risk.
+                            </p>
+                            <div class="small text-muted">
+                                Sleep variation: {{ stability_index.components.sleep_variation_pct }}% ·
+                                Weight fluctuation: {{ stability_index.components.weight_fluctuation_pct }}% ·
+                                Calorie instability: {{ stability_index.components.calorie_instability_pct }}% ·
+                                Mood volatility: {{ stability_index.components.mood_volatility_pct }}%
+                            </div>
+                        </div>
+                    </div>
+                    {% endif %}
+
                     <div class="card bg-light border-0 mb-4">
                         <div class="card-body">
                             <h5 class="card-title">Risk Assessment</h5>

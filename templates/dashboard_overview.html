@@ -118,7 +118,7 @@
 </div>
 {% endif %}
 
-<!-- Quick Consistency Summary -->
+<!-- Quick Consistency & Stability Summary -->
 <div class="row mb-4">
     <div class="col-md-4">
         <div class="card">
@@ -137,7 +137,26 @@
             </div>
         </div>
     </div>
-    <div class="col-md-8">
+    <div class="col-md-4">
+        <div class="card">
+            <div class="card-body">
+                <h5 class="card-title"><i class="bi bi-shield-check text-primary"></i> Stability Index</h5>
+                {% if stability_index.score %}
+                <div class="d-flex align-items-center mb-2">
+                    <span class="display-6 fw-bold me-3">{{ stability_index.score }}</span>
+                    <div>
+                        <span class="badge bg-primary">{{ stability_index.label }}</span><br>
+                        <small class="text-muted">Lower volatility in sleep, weight & calories.</small>
+                    </div>
+                </div>
+                {% else %}
+                <p class="text-muted small mb-0">Log a few days of data to see your stability index.</p>
+                {% endif %}
+                <a href="{% url 'analytics_recovery' %}" class="small">See detailed stability →</a>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-4">
         <div class="card">
             <div class="card-body">
                 <h5 class="card-title"><i class="bi bi-graph-up"></i> Recent Health Data (latest 7)</h5>

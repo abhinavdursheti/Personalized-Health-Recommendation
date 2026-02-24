@@ -14,7 +14,8 @@ from .utils import (
     generate_recovery_stability_analysis, generate_correlation_analysis, generate_habit_sensitivity_analysis,
     assess_progress, assess_health_risks, predict_disease_risks, calculate_consistency_score,
     detect_health_drift, suggest_effort_to_impact_actions, compute_lifestyle_risk_predictions,
-    calculate_recovery_score,
+    calculate_recovery_score, compute_stability_index, compute_disease_risk_momentum,
+    estimate_biological_age, compute_health_balance_dimensions,
 )
 from .ml_models.simulator_model import HealthSimulatorModel
 
@@ -106,6 +107,9 @@ def _build_dashboard_context(request):
     recovery_today = calculate_recovery_score(today_data, profile)
     recovery_yesterday = calculate_recovery_score(yesterday_data, profile)
 
+    # Health Stability Index (predictive behavior score)
+    stability_index = compute_stability_index(health_data_list)
+
     return {
         'profile': profile,
         'recent_data': recent_data,
@@ -126,6 +130,7 @@ def _build_dashboard_context(request):
         'lifestyle_risks': lifestyle_risks,
         'recovery_today': recovery_today,
         'recovery_yesterday': recovery_yesterday,
+        'stability_index': stability_index,
     }
 
 
@@ -763,6 +768,7 @@ def analytics_recovery(request):
     yesterday_data = HealthData.objects.filter(user=request.user, date=yesterday).first()
     recovery_today = calculate_recovery_score(today_data, profile)
     recovery_yesterday = calculate_recovery_score(yesterday_data, profile)
+    stability_index = compute_stability_index(health_data_list)
     
     if request.method == 'POST':
         if not has_sufficient_data:
@@ -793,8 +799,136 @@ def analytics_recovery(request):
         'has_sufficient_data': has_sufficient_data,
         'recovery_today': recovery_today,
         'recovery_yesterday': recovery_yesterday,
+        'stability_index': stability_index,
     })
 
+
+@login_required
+def analytics_risk_momentum(request):
+    """Health Risk Momentum Tracker based on disease risk trends."""
+
+    predictions = list(
+        DiseasePrediction.objects.filter(user=request.user)
+        .order_by('created_at')
+    )
+
+    momentum = compute_disease_risk_momentum(predictions) or []
+
+    # Safe absolute value calculation
+    for item in momentum:
+        change = item.get("change_per_week", 0)
+        item["abs_change_per_week"] = abs(change)
+
+    primary_series_labels = '[]'
+    primary_series_values = '[]'
+    primary_disease = None
+    primary_momentum = None
+
+    if momentum:
+        primary_momentum = momentum[0]
+        primary_disease = primary_momentum['disease']
+
+        series = [
+            p for p in predictions
+            if p.disease_type == primary_disease
+        ]
+
+        series_sorted = sorted(series, key=lambda x: x.created_at)
+
+        labels = [p.created_at.strftime('%Y-%m-%d') for p in series_sorted]
+        values = [round(p.risk_score, 1) for p in series_sorted]
+
+        import json
+        primary_series_labels = json.dumps(labels)
+        primary_series_values = json.dumps(values)
+
+    return render(request, 'analytics_risk_momentum.html', {
+        'momentum': momentum,
+        'primary_disease': primary_disease,
+        'primary_momentum': primary_momentum,
+        'primary_series_labels': primary_series_labels,
+        'primary_series_values': primary_series_values,
+    })
+
+
+@login_required
+def analytics_biological_age(request):
+    """Biological Age Estimator analytics page."""
+    try:
+        profile = request.user.userprofile
+    except UserProfile.DoesNotExist:
+        messages.warning(request, 'Please complete your profile first.')
+        return redirect('setup_profile')
+
+    health_data_list = list(HealthData.objects.filter(user=request.user).order_by('date'))
+    has_sufficient_data = len(health_data_list) >= 1
+
+    from datetime import date
+    today = date.today()
+    today_data = HealthData.objects.filter(user=request.user, date=today).first()
+    recovery_today = calculate_recovery_score(today_data, profile) if today_data else None
+
+    consistency_summary = calculate_consistency_score(health_data_list) if health_data_list else None
+    stability_index = compute_stability_index(health_data_list) if health_data_list else None
+
+    bio = estimate_biological_age(
+        profile,
+        health_data_list,
+        consistency_summary=consistency_summary,
+        stability_index=stability_index,
+        recovery_today=recovery_today,
+    )
+
+    return render(request, 'analytics_biological_age.html', {
+        'has_sufficient_data': has_sufficient_data,
+        'bio': bio,
+        'consistency_summary': consistency_summary,
+        'stability_index': stability_index,
+        'recovery_today': recovery_today,
+    })
+
+
+@login_required
+def analytics_health_balance(request):
+    """Health Balance Radar analytics page."""
+    try:
+        profile = request.user.userprofile
+    except UserProfile.DoesNotExist:
+        messages.warning(request, 'Please complete your profile first.')
+        return redirect('setup_profile')
+
+    health_data_list = list(HealthData.objects.filter(user=request.user).order_by('date'))
+    has_sufficient_data = len(health_data_list) >= 1
+
+    from datetime import date
+    today = date.today()
+    today_data = HealthData.objects.filter(user=request.user, date=today).first()
+    recovery_today = calculate_recovery_score(today_data, profile) if today_data else None
+    stability_index = compute_stability_index(health_data_list) if health_data_list else None
+
+    balance = compute_health_balance_dimensions(
+        profile,
+        health_data_list,
+        recovery_today=recovery_today,
+        stability_index=stability_index,
+    )
+
+    radar_labels = ['Sleep', 'Exercise', 'Nutrition', 'Recovery', 'Stability', 'Metabolic']
+    radar_values = [
+        balance['sleep'],
+        balance['exercise'],
+        balance['nutrition'],
+        balance['recovery'],
+        balance['stability'],
+        balance['metabolic'],
+    ]
+
+    return render(request, 'analytics_health_balance.html', {
+        'has_sufficient_data': has_sufficient_data,
+        'balance': balance,
+        'radar_labels': json.dumps(radar_labels),
+        'radar_values': json.dumps(radar_values),
+    })
 
 @login_required
 def analytics_correlation(request):
@@ -852,6 +986,7 @@ def analytics_habits(request):
             return redirect('analytics_habits')
 
         analysis_data = generate_habit_sensitivity_analysis(profile, health_data_list)
+        analysis_data['total_habits'] = analysis_data.get('total_habits', len(analysis_data.get('habits', [])))
         
         # Save to database
         HabitSensitivityAnalysis.objects.create(
@@ -859,7 +994,7 @@ def analytics_habits(request):
             fragile_habits=analysis_data['fragile_habits'],
             resilient_habits=analysis_data['resilient_habits'],
             high_impact_habits=analysis_data['high_impact_habits'],
-            total_habits_analyzed=analysis_data['total_habits_analyzed'],
+            total_habits_analyzed = analysis_data.get('total_habits_analyzed', 0)
         )
         messages.success(request, 'Habit analysis generated successfully!')
         return redirect('analytics_habits')
@@ -1058,7 +1193,7 @@ def generate_habit_analysis(request):
         fragile_habits=analysis_data['fragile_habits'],
         resilient_habits=analysis_data['resilient_habits'],
         high_impact_habits=analysis_data['high_impact_habits'],
-        total_habits_analyzed=analysis_data['total_habits'],
+        total_habits_analyzed=analysis_data.get('total_habits', 0),
     )
     
     return JsonResponse({

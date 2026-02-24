@@ -2,6 +2,7 @@
 Utility functions for recommendation system
 """
 import statistics
+import json
 
 from .ml_models.diet_model import DietRecommendationModel
 
@@ -318,6 +319,84 @@ def calculate_consistency_score(health_data_list):
     return {'score': score, 'level': level, 'summary': summary, 'details': details}
 
 
+def _variation_pct(values):
+    """Helper: coefficient of variation (std/mean * 100) or 0 if not enough data."""
+    if not values:
+        return 0.0
+    avg_val = statistics.mean(values)
+    if not avg_val:
+        return 0.0
+    return (_safe_std(values) / avg_val) * 100.0
+
+
+def compute_stability_index(health_data_list):
+    """
+    Health Stability Index (0–100).
+
+    Uses variability in:
+    - Sleep duration
+    - Weight
+    - Calories
+    - Mood proxy (from sleep & calorie swings)
+
+    Lower stability (more volatility) -> lower score -> higher future risk.
+    """
+    if not health_data_list or len(health_data_list) < 2:
+        return {
+            'score': None,
+            'label': 'Not enough data',
+            'components': {},
+        }
+
+    data = sorted(health_data_list, key=lambda d: d.date)
+
+    sleep_values = [d.sleep_hours for d in data if d.sleep_hours is not None]
+    weight_values = [d.weight for d in data if d.weight is not None]
+    calorie_values = [
+        d.calories_consumed if d.calories_consumed is not None else d.total_calories
+        for d in data
+        if (d.calories_consumed is not None) or d.total_calories
+    ]
+
+    sleep_var = _variation_pct(sleep_values)
+    weight_var = _variation_pct(weight_values)
+    calorie_var = _variation_pct(calorie_values)
+
+    if sleep_values and calorie_values:
+        mood_var = (sleep_var + calorie_var) / 2.0
+    else:
+        mood_var = max(sleep_var, calorie_var)
+
+    volatility = (
+        sleep_var * 0.3 +
+        weight_var * 0.3 +
+        calorie_var * 0.25 +
+        mood_var * 0.15
+    )
+
+    stability_score = max(0, min(100, round(100 - min(volatility, 80))))
+
+    if stability_score >= 75:
+        label = 'Stable'
+    elif stability_score >= 50:
+        label = 'Moderate'
+    else:
+        label = 'Low stability'
+
+    components = {
+        'sleep_variation_pct': round(sleep_var, 1),
+        'weight_fluctuation_pct': round(weight_var, 1),
+        'calorie_instability_pct': round(calorie_var, 1),
+        'mood_volatility_pct': round(mood_var, 1),
+    }
+
+    return {
+        'score': stability_score,
+        'label': label,
+        'components': components,
+    }
+
+
 def detect_health_drift(health_data_list):
     """
     Detect gradual negative trends using recent weekly averages.
@@ -396,6 +475,204 @@ def detect_health_drift(health_data_list):
         })
 
     return drifts
+
+
+def compute_disease_risk_momentum(predictions):
+    """
+    Compute Health Risk Momentum per disease type from DiseasePrediction queryset.
+    Returns list of dicts with per-week change and direction, sorted by absolute change.
+    """
+    from collections import defaultdict
+
+    if not predictions:
+        return []
+
+    grouped = defaultdict(list)
+    for p in predictions:
+        grouped[p.disease_type].append(p)
+
+    results = []
+    for disease, preds in grouped.items():
+        if len(preds) < 2:
+            continue
+        ordered = sorted(preds, key=lambda x: x.created_at)
+        first = ordered[0]
+        last = ordered[-1]
+        days = max(1, (last.created_at.date() - first.created_at.date()).days)
+        weeks = max(1.0, days / 7.0)
+        change_per_week = (last.risk_score - first.risk_score) / weeks
+        direction = 'increasing' if change_per_week > 0 else 'decreasing'
+        results.append({
+            'disease': disease,
+            'change_per_week': round(change_per_week, 2),
+            'direction': direction,
+            'start_score': round(first.risk_score, 1),
+            'end_score': round(last.risk_score, 1),
+            'weeks_span': round(weeks, 1),
+        })
+
+    results.sort(key=lambda x: abs(x['change_per_week']), reverse=True)
+    return results
+
+
+def estimate_biological_age(user_profile, health_data_list, consistency_summary=None, stability_index=None, recovery_today=None):
+    """
+    Estimate Biological Age from lifestyle patterns.
+    Uses consistency, stability, recovery, sleep, exercise, calories, and BMI.
+    Returns chronological age, biological age and key drivers.
+    """
+    if not health_data_list:
+        return {
+            'chronological_age': user_profile.age,
+            'biological_age': None,
+            'delta_years': None,
+            'direction': 'unknown',
+            'drivers': ['Not enough data to estimate biological age.'],
+        }
+
+    data = sorted(health_data_list, key=lambda d: d.date)
+
+    def avg(lst, default=0):
+        return statistics.mean(lst) if lst else default
+
+    sleep_avg = avg([d.sleep_hours for d in data if d.sleep_hours is not None], default=7)
+    exercise_avg = avg([d.exercise_minutes for d in data if d.exercise_minutes is not None], default=0)
+    calories_avg = avg([
+        d.calories_consumed if d.calories_consumed is not None else d.total_calories
+        for d in data
+        if (d.calories_consumed is not None) or d.total_calories
+    ], default=user_profile.tdee if hasattr(user_profile, 'tdee') else 2000)
+    tdee = user_profile.tdee if hasattr(user_profile, 'tdee') else 2000
+    calories_ratio = calories_avg / tdee if tdee else 1.0
+
+    if consistency_summary is None:
+        consistency_summary = calculate_consistency_score(health_data_list)
+    consistency_score = consistency_summary.get('score', 60)
+
+    if stability_index is None:
+        stability_index = compute_stability_index(health_data_list)
+    stability_score = stability_index.get('score') or 60
+
+    recovery_score = (recovery_today or {}).get('score') if isinstance(recovery_today, dict) else None
+    if recovery_score is None:
+        recovery_score = 65
+
+    lifestyle_score = (
+        consistency_score * 0.35 +
+        stability_score * 0.3 +
+        recovery_score * 0.35
+    ) / 1.0
+
+    lifestyle_score = max(0, min(100, lifestyle_score))
+
+    # Map lifestyle_score (0–100) to age adjustment roughly between about -10 and +10 years
+    age_adjust = (75 - lifestyle_score) / 7.0
+    chronological_age = user_profile.age
+    biological_age = round(chronological_age + age_adjust, 1)
+
+    delta = round(biological_age - chronological_age, 1)
+    direction = 'older' if delta > 0 else 'younger' if delta < 0 else 'same'
+
+    drivers = []
+    if sleep_avg < 6.5:
+        drivers.append('Short sleep is pushing your biological age higher.')
+    elif 7 <= sleep_avg <= 8.5:
+        drivers.append('Consistently good sleep is keeping your biological age younger.')
+
+    if exercise_avg < 30:
+        drivers.append('Low daily exercise is reducing metabolic resilience.')
+    elif exercise_avg >= 45:
+        drivers.append('Strong activity levels are improving cardiovascular age.')
+
+    if calories_ratio > 1.15:
+        drivers.append('Calorie intake above your needs is increasing metabolic strain.')
+    elif 0.85 <= calories_ratio <= 1.1:
+        drivers.append('Calories are well aligned with your energy needs.')
+
+    bmi = user_profile.bmi
+    if bmi >= 30:
+        drivers.append('High BMI is a major driver of higher biological age.')
+    elif 20 <= bmi <= 25:
+        drivers.append('Healthy BMI is supporting a younger biological age.')
+
+    if lifestyle_score >= 75:
+        drivers.append('Overall lifestyle pattern is excellent for healthy ageing.')
+    elif lifestyle_score <= 50:
+        drivers.append('Lifestyle volatility suggests higher ageing pressure on the body.')
+
+    return {
+        'chronological_age': chronological_age,
+        'biological_age': biological_age,
+        'delta_years': delta,
+        'direction': direction,
+        'lifestyle_score': round(lifestyle_score, 1),
+        'drivers': drivers,
+    }
+
+
+def compute_health_balance_dimensions(user_profile, health_data_list, recovery_today=None, stability_index=None):
+    """
+    Compute scores for Health Balance Radar:
+    Sleep, Exercise, Nutrition, Recovery, Stability, Metabolic (0–100 each).
+    """
+    if not health_data_list:
+        return {
+            'sleep': 0,
+            'exercise': 0,
+            'nutrition': 0,
+            'recovery': 0,
+            'stability': 0,
+            'metabolic': 0,
+        }
+
+    consistency = calculate_consistency_score(health_data_list)
+    details = consistency.get('details', {})
+    sleep_score = details.get('sleep_score', 0)
+    exercise_score = details.get('exercise_score', 0)
+    diet_score = details.get('diet_score', 0)
+
+    rec_score = (recovery_today or {}).get('score') if isinstance(recovery_today, dict) else None
+    if rec_score is None:
+        rec_score = 65
+
+    stab_score = (stability_index or {}).get('score') if isinstance(stability_index, dict) else None
+    if stab_score is None:
+        stab_score = 60
+
+    # Simple metabolic health proxy from BMI and calories balance
+    data = sorted(health_data_list, key=lambda d: d.date)
+
+    def avg(lst, default=0):
+        return statistics.mean(lst) if lst else default
+
+    bmi = user_profile.bmi
+    if bmi < 19 or bmi > 32:
+        metabolic = 45
+    elif 19 <= bmi <= 27:
+        metabolic = 85
+    else:
+        metabolic = 70
+
+    calories_avg = avg([
+        d.calories_consumed if d.calories_consumed is not None else d.total_calories
+        for d in data
+        if (d.calories_consumed is not None) or d.total_calories
+    ], default=user_profile.tdee if hasattr(user_profile, 'tdee') else 2000)
+    tdee = user_profile.tdee if hasattr(user_profile, 'tdee') else 2000
+    if tdee:
+        ratio = calories_avg / tdee
+        if ratio > 1.25 or ratio < 0.75:
+            metabolic -= 10
+
+    return {
+        'sleep': round(sleep_score, 1),
+        'exercise': round(exercise_score, 1),
+        'nutrition': round(diet_score, 1),
+        'recovery': round(rec_score, 1),
+        'stability': round(stab_score, 1),
+        'metabolic': max(0, min(100, round(metabolic, 1))),
+    }
+
 
 
 def compute_lifestyle_risk_predictions(user_profile, health_data_list, consistency_summary=None, drift_alerts=None):

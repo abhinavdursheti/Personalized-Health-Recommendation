@@ -1,0 +1,83 @@
+{% extends 'base.html' %}
+
+{% block title %}Biological Age Estimator - Health Recommendation System{% endblock %}
+
+{% block content %}
+<div class="row mb-4">
+    <div class="col-md-12">
+        <nav aria-label="breadcrumb">
+            <ol class="breadcrumb">
+                <li class="breadcrumb-item"><a href="{% url 'analytics' %}">Analytics</a></li>
+                <li class="breadcrumb-item active" aria-current="page">Biological Age Estimator</li>
+            </ol>
+        </nav>
+        <h2 class="text-white">
+            🧬 Biological Age Estimator
+        </h2>
+        <p class="text-white-50">Estimates your body’s functional age based on lifestyle patterns.</p>
+    </div>
+</div>
+
+<div class="row mb-4">
+    <div class="col-md-12">
+        <div class="card shadow">
+            <div class="card-body">
+                {% if not has_sufficient_data or bio.biological_age is None %}
+                    <div class="alert alert-info mb-0">
+                        <i class="bi bi-info-circle"></i>
+                        Add a few days of health data to unlock biological age estimation.
+                    </div>
+                {% else %}
+                    <div class="row align-items-center">
+                        <div class="col-md-4 text-center mb-3">
+                            <h6 class="text-muted">Chronological age</h6>
+                            <div class="display-4 fw-bold">{{ bio.chronological_age }}</div>
+                            <span class="badge bg-light text-dark">Years</span>
+                        </div>
+                        <div class="col-md-4 text-center mb-3">
+                            <h6 class="text-muted">Biological age</h6>
+                            <div class="display-4 fw-bold {% if bio.direction == 'younger' %}text-success{% elif bio.direction == 'older' %}text-danger{% endif %}">
+                                {{ bio.biological_age }}
+                            </div>
+                            <span class="badge {% if bio.direction == 'younger' %}bg-success{% elif bio.direction == 'older' %}bg-danger{% else %}bg-secondary{% endif %}">
+                                {% if bio.direction == 'younger' %}
+                                {{ bio.abs_delta_years }} years younger
+                                {% elif bio.direction == 'older' %}
+                                    {{ bio.delta_years }} years older
+                                {% else %}
+                                    Aligned with age
+                                {% endif %}
+                            </span>
+                        </div>
+                        <div class="col-md-4 mb-3">
+                            <h6 class="text-muted">Lifestyle score</h6>
+                            <div class="d-flex align-items-center">
+                                <div class="progress flex-grow-1" style="height: 16px;">
+                                    <div class="progress-bar" role="progressbar"
+                                         style="width: {{ bio.lifestyle_score }}%;">
+                                        {{ bio.lifestyle_score }}
+                                    </div>
+                                </div>
+                            </div>
+                            <small class="text-muted d-block mt-1">
+                                Combined impact of sleep, activity, calories, consistency and stability.
+                            </small>
+                        </div>
+                    </div>
+
+                    <hr>
+                    <h5 class="mb-2"><i class="bi bi-lightbulb"></i> What’s driving your biological age?</h5>
+                    <ul class="list-group list-group-flush">
+                        {% for d in bio.drivers %}
+                        <li class="list-group-item">
+                            <i class="bi bi-check-circle text-success me-2"></i>{{ d }}
+                        </li>
+                        {% endfor %}
+                    </ul>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
