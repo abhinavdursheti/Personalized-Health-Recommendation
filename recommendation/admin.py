@@ -11,7 +11,7 @@ class UserProfileAdmin(admin.ModelAdmin):
 
 @admin.register(HealthData)
 class HealthDataAdmin(admin.ModelAdmin):
-    list_display = ['user', 'date', 'weight', 'sleep_hours', 'exercise_minutes', 'calories_consumed']
+    list_display = ['user', 'date', 'weight', 'sleep_hours', 'exercise_minutes', 'calories_consumed', 'systolic_bp', 'diastolic_bp', 'fasting_sugar', 'post_meal_sugar']
     list_filter = ['date']
     search_fields = ['user__username']
     date_hierarchy = 'date'

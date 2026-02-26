@@ -25,8 +25,8 @@
 </div>
 {% endif %}
 
-<div class="row g-4 justify-content-center">
-    <!-- Recovery Analysis -->
+<div class="row g-4 mb-0">
+    <!-- Row 1: Recovery & Stability | Correlation Engine | Biological Age Estimator -->
     <div class="col-md-4">
         <a href="{% url 'analytics_recovery' %}" class="text-decoration-none">
             <div class="card h-100 text-center hover-card border-0 shadow-lg" style="transition: transform 0.3s;">
@@ -35,16 +35,12 @@
                         <i class="bi bi-arrow-clockwise text-primary" style="font-size: 3rem;"></i>
                     </div>
                     <h3 class="card-title text-dark">Recovery & Stability</h3>
-                    <p class="text-muted mt-3">Predicts recovery time from setbacks and analyzes your behavior
-                        consistency.</p>
-                    <div class="btn btn-outline-primary mt-3 visually-hidden-hover">View Analysis <i
-                            class="bi bi-arrow-right"></i></div>
+                    <p class="text-muted mt-3">Predicts recovery time from setbacks and analyzes your behavior consistency.</p>
+                    <div class="btn btn-outline-primary mt-3 visually-hidden-hover">View Analysis <i class="bi bi-arrow-right"></i></div>
                 </div>
             </div>
         </a>
     </div>
-
-    <!-- Correlation Analysis -->
     <div class="col-md-4">
         <a href="{% url 'analytics_correlation' %}" class="text-decoration-none">
             <div class="card h-100 text-center hover-card border-0 shadow-lg" style="transition: transform 0.3s;">
@@ -53,34 +49,13 @@
                         <i class="bi bi-diagram-3 text-success" style="font-size: 3rem;"></i>
                     </div>
                     <h3 class="card-title text-dark">Correlation Engine</h3>
-                    <p class="text-muted mt-3">Identifies hidden patterns and root causes affecting your health
-                        outcomes.</p>
-                    <div class="btn btn-outline-success mt-3 visually-hidden-hover">View Analysis <i
-                            class="bi bi-arrow-right"></i></div>
+                    <p class="text-muted mt-3">Identifies hidden patterns and root causes affecting your health outcomes.</p>
+                    <div class="btn btn-outline-success mt-3 visually-hidden-hover">View Analysis <i class="bi bi-arrow-right"></i></div>
                 </div>
             </div>
         </a>
     </div>
-
-    <!-- Habit Analysis -->
     <div class="col-md-4">
-        <a href="{% url 'analytics_habits' %}" class="text-decoration-none">
-            <div class="card h-100 text-center hover-card border-0 shadow-lg" style="transition: transform 0.3s;">
-                <div class="card-body p-5">
-                    <div class="rounded-circle bg-info bg-opacity-10 p-4 d-inline-block mb-4">
-                        <i class="bi bi-shield-check text-info" style="font-size: 3rem;"></i>
-                    </div>
-                    <h3 class="card-title text-dark">Habit Sensitivity</h3>
-                    <p class="text-muted mt-3">Analyzes which habits are fragile, resilient, or have high impact.</p>
-                    <div class="btn btn-outline-info mt-3 visually-hidden-hover">View Analysis <i
-                            class="bi bi-arrow-right"></i></div>
-                </div>
-            </div>
-        </a>
-    </div>
-
-    <!-- Biological Age Estimator -->
-    <div class="col-md-4 mt-4">
         <a href="{% url 'analytics_biological_age' %}" class="text-decoration-none">
             <div class="card h-100 text-center hover-card border-0 shadow-lg" style="transition: transform 0.3s;">
                 <div class="card-body p-5">
@@ -88,16 +63,15 @@
                         <span style="font-size: 2.5rem;">🧬</span>
                     </div>
                     <h3 class="card-title text-dark">Biological Age Estimator</h3>
-                    <p class="text-muted mt-3">Estimates your body’s functional age based on lifestyle patterns.</p>
-                    <div class="btn btn-outline-secondary mt-3 visually-hidden-hover">Estimate Age <i
-                            class="bi bi-arrow-right"></i></div>
+                    <p class="text-muted mt-3">Estimates your body's functional age based on lifestyle patterns.</p>
+                    <div class="btn btn-outline-secondary mt-3 visually-hidden-hover">Estimate Age <i class="bi bi-arrow-right"></i></div>
                 </div>
             </div>
         </a>
     </div>
 
-    <!-- Health Balance Radar -->
-    <div class="col-md-4 mt-4">
+    <!-- Row 2: Health Balance Radar | Risk Momentum | Cardiometabolic Risk Monitoring -->
+    <div class="col-md-4">
         <a href="{% url 'analytics_health_balance' %}" class="text-decoration-none">
             <div class="card h-100 text-center hover-card border-0 shadow-lg" style="transition: transform 0.3s;">
                 <div class="card-body p-5">
@@ -106,15 +80,12 @@
                     </div>
                     <h3 class="card-title text-dark">Health Balance Radar</h3>
                     <p class="text-muted mt-3">Visual radar showing balance across sleep, activity, nutrition & recovery.</p>
-                    <div class="btn btn-outline-info mt-3 visually-hidden-hover">View Radar <i
-                            class="bi bi-arrow-right"></i></div>
+                    <div class="btn btn-outline-info mt-3 visually-hidden-hover">View Radar <i class="bi bi-arrow-right"></i></div>
                 </div>
             </div>
         </a>
     </div>
-
-    <!-- Risk Momentum Tracker -->
-    <div class="col-md-4 mt-4">
+    <div class="col-md-4">
         <a href="{% url 'analytics_risk_momentum' %}" class="text-decoration-none">
             <div class="card h-100 text-center hover-card border-0 shadow-lg" style="transition: transform 0.3s;">
                 <div class="card-body p-5">
@@ -123,8 +94,21 @@
                     </div>
                     <h3 class="card-title text-dark">Risk Momentum</h3>
                     <p class="text-muted mt-3">Shows how fast disease risks are rising or falling over time.</p>
-                    <div class="btn btn-outline-danger mt-3 visually-hidden-hover">View Trend <i
-                            class="bi bi-arrow-right"></i></div>
+                    <div class="btn btn-outline-danger mt-3 visually-hidden-hover">View Trend <i class="bi bi-arrow-right"></i></div>
+                </div>
+            </div>
+        </a>
+    </div>
+    <div class="col-md-4">
+        <a href="{% url 'analytics_cardiometabolic' %}" class="text-decoration-none">
+            <div class="card h-100 text-center hover-card border-0 shadow-lg" style="transition: transform 0.3s;">
+                <div class="card-body p-5">
+                    <div class="rounded-circle bg-danger bg-opacity-10 p-4 d-inline-block mb-4">
+                        <span style="font-size: 2.5rem;">🫀</span>
+                    </div>
+                    <h3 class="card-title text-dark">Cardiometabolic Risk Monitoring</h3>
+                    <p class="text-muted mt-3">Tracks blood pressure and glucose trends to detect early lifestyle-related risks.</p>
+                    <div class="btn btn-outline-danger mt-3 visually-hidden-hover">View Monitoring <i class="bi bi-arrow-right"></i></div>
                 </div>
             </div>
         </a>

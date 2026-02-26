@@ -31,7 +31,8 @@ urlpatterns = [
     path('analytics/biological-age/', views.analytics_biological_age, name='analytics_biological_age'),
     path('analytics/health-balance/', views.analytics_health_balance, name='analytics_health_balance'),
     path('analytics/risk-momentum/', views.analytics_risk_momentum, name='analytics_risk_momentum'),
-    
+    path('analytics/cardiometabolic/', views.analytics_cardiometabolic, name='analytics_cardiometabolic'),
+
     # Simulator
     path('simulator/', views.simulator, name='simulator'),
     path('api/run-simulation/', views.run_simulation, name='run_simulation'),
