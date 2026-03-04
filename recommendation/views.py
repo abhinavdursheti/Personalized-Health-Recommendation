@@ -1,5 +1,4 @@
 from django.shortcuts import render, redirect, get_object_or_404
-from django.db.models import Q
 from django.contrib.auth import login, authenticate
 from django.contrib.auth.decorators import login_required
 from django.contrib import messages
@@ -469,11 +468,6 @@ def add_health_data(request):
         calories_consumed = request.POST.get('calories_consumed')
         water_intake = request.POST.get('water_intake_liters')
         notes = request.POST.get('notes', '')
-
-        systolic_bp = request.POST.get('systolic_bp')
-        diastolic_bp = request.POST.get('diastolic_bp')
-        fasting_sugar = request.POST.get('fasting_sugar')
-        post_meal_sugar = request.POST.get('post_meal_sugar')
         
         # Get the last entry date for this user
         last_entry = HealthData.objects.filter(user=request.user).order_by('-date').first()
@@ -493,10 +487,6 @@ def add_health_data(request):
             calories_consumed=float(calories_consumed) if calories_consumed else None,
             water_intake_liters=float(water_intake) if water_intake else None,
             notes=notes,
-            systolic_bp=int(systolic_bp) if systolic_bp else None,
-            diastolic_bp=int(diastolic_bp) if diastolic_bp else None,
-            fasting_sugar=float(fasting_sugar) if fasting_sugar else None,
-            post_meal_sugar=float(post_meal_sugar) if post_meal_sugar else None,
         )
         
         # Update nutrition totals from food entries for this date
@@ -813,110 +803,70 @@ def analytics_recovery(request):
     })
 
 
-def _cardiometabolic_bp_category(systolic, diastolic):
-    """Classify BP by standard ranges (systolic/diastolic). Returns (label, bootstrap badge class)."""
-    if systolic is None and diastolic is None:
-        return None, None
-    s = systolic or 0
-    d = diastolic  # None when not entered
-    if s >= 140 or (d is not None and d >= 90):
-        return 'Stage 2', 'danger'
-    if 130 <= s <= 139 or (d is not None and 80 <= d <= 89):
-        return 'Stage 1', 'warning'
-    if 120 <= s <= 129 and (d is None or d < 80):
-        return 'Elevated', 'warning'
-    if s < 120 and (d is None or d < 80):
-        return 'Normal', 'success'
-    return 'Normal', 'success'
-
-
-def _cardiometabolic_sugar_category(fasting_sugar):
-    """Classify fasting glucose. Returns (label, bootstrap badge class)."""
-    if fasting_sugar is None:
-        return None, None
-    if fasting_sugar < 100:
-        return 'Normal', 'success'
-    if 100 <= fasting_sugar <= 125:
-        return 'Prediabetic', 'warning'
-    return 'Diabetic risk', 'danger'
-
-
-def _trend_direction(values):
-    """Values ordered by date (oldest first). Returns 'increasing', 'stable', or 'decreasing'."""
-    if not values or len(values) < 2:
-        return 'stable'
-    n = len(values)
-    first_half = values[: max(1, n // 2)]
-    second_half = values[-max(1, n // 2):]
-    avg_first = sum(first_half) / len(first_half)
-    avg_second = sum(second_half) / len(second_half)
-    diff = avg_second - avg_first
-    if diff > 0.5:
-        return 'increasing'
-    if diff < -0.5:
-        return 'decreasing'
-    return 'stable'
-
-
 @login_required
-def analytics_cardiometabolic(request):
-    """Cardiometabolic risk monitoring: analyze user-entered BP and glucose, show risk trends only."""
-    entries = list(
-        HealthData.objects.filter(user=request.user)
-        .filter(
-            Q(systolic_bp__isnull=False) | Q(diastolic_bp__isnull=False)
-            | Q(fasting_sugar__isnull=False) | Q(post_meal_sugar__isnull=False)
-        )
-        .order_by('date')
+def analytics_habit_streak(request):
+    """Habit Streak Tracker: current streaks for sleep, exercise, diet, and overall activity."""
+    try:
+        profile = request.user.userprofile
+    except UserProfile.DoesNotExist:
+        messages.warning(request, 'Please complete your profile first.')
+        return redirect('setup_profile')
+
+    entries = list(HealthData.objects.filter(user=request.user).order_by('-date'))
+
+    def _current_streak(predicate):
+        """Return current consecutive-day streak from most recent entry."""
+        if not entries:
+            return 0
+        from datetime import timedelta
+        first = entries[0]
+        if not predicate(first):
+            return 0
+        streak = 1
+        prev_date = first.date
+        for entry in entries[1:]:
+            # Require calendar-consecutive dates for the streak
+            if (prev_date - entry.date) != timedelta(days=1):
+                break
+            if predicate(entry):
+                streak += 1
+                prev_date = entry.date
+            else:
+                break
+        return streak
+
+    sleep_streak = _current_streak(
+        lambda e: e.sleep_hours is not None and e.sleep_hours > 0
     )
-    # Entries that have at least one cardiometabolic value
-    entries_bp = [e for e in entries if e.systolic_bp is not None or e.diastolic_bp is not None]
-    entries_sugar = [e for e in entries if e.fasting_sugar is not None]
+    exercise_streak = _current_streak(
+        lambda e: e.exercise_minutes is not None and e.exercise_minutes > 0
+    )
+    diet_streak = _current_streak(
+        lambda e: (
+            (e.total_calories is not None and e.total_calories > 0) or
+            (e.calories_consumed is not None and e.calories_consumed > 0)
+        )
+    )
+    activity_streak = _current_streak(
+        lambda e: any([
+            (e.sleep_hours or 0) > 0,
+            (e.exercise_minutes or 0) > 0,
+            (e.calories_consumed or 0) > 0,
+            (e.total_calories or 0) > 0,
+            (e.water_intake_liters or 0) > 0,
+        ])
+    )
 
-    latest = entries[-1] if entries else None
-    bp_category_label, bp_badge = None, None
-    sugar_category_label, sugar_badge = None, None
-    if latest:
-        if latest.systolic_bp is not None or latest.diastolic_bp is not None:
-            bp_category_label, bp_badge = _cardiometabolic_bp_category(latest.systolic_bp, latest.diastolic_bp)
-        if latest.fasting_sugar is not None:
-            sugar_category_label, sugar_badge = _cardiometabolic_sugar_category(latest.fasting_sugar)
-
-    # Weekly trend direction (last 7 entries with values)
-    bp_systolic_series = [e.systolic_bp for e in entries_bp if e.systolic_bp is not None]
-    sugar_series = [e.fasting_sugar for e in entries_sugar]
-    bp_trend = _trend_direction(bp_systolic_series) if len(bp_systolic_series) >= 2 else 'stable'
-    sugar_trend = _trend_direction(sugar_series) if len(sugar_series) >= 2 else 'stable'
-
-    # Chart data (last 30 points) as JSON for template
-    chart_entries = entries[-30:] if len(entries) > 30 else entries
-    chart_labels = [e.date.strftime('%Y-%m-%d') for e in chart_entries]
-    chart_systolic = [e.systolic_bp for e in chart_entries]
-    chart_diastolic = [e.diastolic_bp for e in chart_entries]
-    chart_fasting = [e.fasting_sugar for e in chart_entries]
-    chart_labels_json = json.dumps(chart_labels)
-    chart_systolic_json = json.dumps(chart_systolic)
-    chart_diastolic_json = json.dumps(chart_diastolic)
-    chart_fasting_json = json.dumps(chart_fasting)
-    show_chart = len(chart_entries) >= 2 and (any(x is not None for x in chart_systolic) or any(x is not None for x in chart_fasting))
-
-    return render(request, 'analytics_cardiometabolic.html', {
-        'latest': latest,
-        'bp_category_label': bp_category_label,
-        'bp_badge': bp_badge,
-        'sugar_category_label': sugar_category_label,
-        'sugar_badge': sugar_badge,
-        'bp_trend': bp_trend,
-        'sugar_trend': sugar_trend,
-        'entries_bp': entries_bp,
-        'entries_sugar': entries_sugar,
-        'chart_labels_json': chart_labels_json,
-        'chart_systolic_json': chart_systolic_json,
-        'chart_diastolic_json': chart_diastolic_json,
-        'chart_fasting_json': chart_fasting_json,
-        'show_chart': show_chart,
-        'has_any_data': len(entries) > 0,
-    })
+    context = {
+        'profile': profile,
+        'has_data': bool(entries),
+        'sleep_streak': sleep_streak,
+        'exercise_streak': exercise_streak,
+        'diet_streak': diet_streak,
+        'activity_streak': activity_streak,
+        'latest_date': entries[0].date if entries else None,
+    }
+    return render(request, 'analytics_habit_streak.html', context)
 
 
 @login_required

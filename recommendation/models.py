@@ -90,12 +90,6 @@ class HealthData(models.Model):
     water_intake_liters = models.FloatField(validators=[MinValueValidator(0), MaxValueValidator(10)], null=True, blank=True, help_text="Water intake in liters")
     notes = models.TextField(blank=True)
 
-    # Cardiometabolic monitoring (user-entered; for risk trend analysis only)
-    systolic_bp = models.IntegerField(null=True, blank=True, help_text="Systolic BP (mmHg)")
-    diastolic_bp = models.IntegerField(null=True, blank=True, help_text="Diastolic BP (mmHg)")
-    fasting_sugar = models.FloatField(null=True, blank=True, help_text="Fasting blood glucose (mg/dL)")
-    post_meal_sugar = models.FloatField(null=True, blank=True, help_text="Post-meal blood glucose (mg/dL)")
-    
     # Calculated nutrition totals (from food entries)
     total_calories = models.FloatField(default=0, help_text="Total calories from food entries")
     total_protein = models.FloatField(default=0, help_text="Total protein in grams")

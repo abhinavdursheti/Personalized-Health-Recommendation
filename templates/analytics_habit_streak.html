@@ -1,0 +1,99 @@
+{% extends 'base.html' %}
+
+{% block title %}Habit Streak Tracker - Health Recommendation System{% endblock %}
+
+{% block content %}
+<div class="row mb-4">
+    <div class="col-md-12">
+        <nav aria-label="breadcrumb">
+            <ol class="breadcrumb">
+                <li class="breadcrumb-item"><a href="{% url 'analytics' %}">Analytics</a></li>
+                <li class="breadcrumb-item active" aria-current="page">Habit Streak Tracker</li>
+            </ol>
+        </nav>
+        <h2 class="text-white">
+            🔥 Habit Streak Tracker
+        </h2>
+        <p class="text-white-50">Tracks how many consecutive days you have been logging and maintaining core healthy habits.</p>
+    </div>
+</div>
+
+{% if not has_data %}
+<div class="row mb-4">
+    <div class="col-md-12">
+        <div class="card shadow">
+            <div class="card-body text-center py-5">
+                <i class="bi bi-calendar-x text-muted" style="font-size: 4rem;"></i>
+                <h4 class="mt-3 text-dark">No streaks yet</h4>
+                <p class="text-muted mb-0">Start logging your sleep, exercise, and diet each day to build streaks.</p>
+                <a href="{% url 'dashboard_activity' %}" class="btn btn-primary mt-4">
+                    <i class="bi bi-plus-circle"></i> Log today's habits
+                </a>
+            </div>
+        </div>
+    </div>
+</div>
+{% else %}
+
+<div class="row g-4 mb-4">
+    <div class="col-md-3">
+        <div class="card h-100 shadow">
+            <div class="card-body text-center">
+                <h5 class="card-title mb-2"><i class="bi bi-moon-stars text-info"></i> Sleep Goal Streak</h5>
+                <div class="display-5 fw-bold">{{ sleep_streak }}</div>
+                <p class="text-muted mb-0">days of logged sleep in a row</p>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card h-100 shadow">
+            <div class="card-body text-center">
+                <h5 class="card-title mb-2"><i class="bi bi-lightning-charge text-success"></i> Exercise Streak</h5>
+                <div class="display-5 fw-bold">{{ exercise_streak }}</div>
+                <p class="text-muted mb-0">days with exercise logged</p>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card h-100 shadow">
+            <div class="card-body text-center">
+                <h5 class="card-title mb-2"><i class="bi bi-egg-fried text-warning"></i> Diet Tracking Streak</h5>
+                <div class="display-5 fw-bold">{{ diet_streak }}</div>
+                <p class="text-muted mb-0">days with calories or meals tracked</p>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card h-100 shadow">
+            <div class="card-body text-center">
+                <h5 class="card-title mb-2"><i class="bi bi-heart-pulse text-danger"></i> Activity Streak</h5>
+                <div class="display-5 fw-bold">{{ activity_streak }}</div>
+                <p class="text-muted mb-0">days with any health habit logged</p>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="row">
+    <div class="col-md-12">
+        <div class="card border-secondary">
+            <div class="card-body">
+                <h5 class="card-title mb-2"><i class="bi bi-info-circle text-secondary"></i> How streaks are calculated</h5>
+                <p class="text-muted mb-1">
+                    Streaks count <strong>consecutive calendar days</strong> up to your most recent health entry
+                    (latest: {{ latest_date|date:"M d, Y" }}).
+                </p>
+                <ul class="text-muted mb-0">
+                    <li>Sleep streak: days where sleep hours were logged.</li>
+                    <li>Exercise streak: days with exercise minutes recorded.</li>
+                    <li>Diet streak: days with calories or food entries recorded.</li>
+                    <li>Activity streak: days with any of sleep, exercise, diet, or water intake logged.</li>
+                </ul>
+            </div>
+        </div>
+    </div>
+</div>
+
+{% endif %}
+{% endblock %}
+

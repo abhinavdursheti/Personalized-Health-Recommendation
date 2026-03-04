@@ -4,6 +4,7 @@ from . import views
 
 urlpatterns = [
     # Authentication
+    path("analytics/habit-streak/", views.analytics_habit_streak, name="analytics_habit_streak"),
     path('', views.index, name='index'),
     path('register/', views.register_view, name='register'),
     path('login/', views.login_view, name='login'),
@@ -31,7 +32,7 @@ urlpatterns = [
     path('analytics/biological-age/', views.analytics_biological_age, name='analytics_biological_age'),
     path('analytics/health-balance/', views.analytics_health_balance, name='analytics_health_balance'),
     path('analytics/risk-momentum/', views.analytics_risk_momentum, name='analytics_risk_momentum'),
-    path('analytics/cardiometabolic/', views.analytics_cardiometabolic, name='analytics_cardiometabolic'),
+    path('analytics/habit-streak/', views.analytics_habit_streak, name='analytics_habit_streak'),
 
     # Simulator
     path('simulator/', views.simulator, name='simulator'),
