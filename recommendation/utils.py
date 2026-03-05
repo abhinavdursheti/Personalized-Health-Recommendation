@@ -9,73 +9,168 @@ from .ml_models.diet_model import DietRecommendationModel
 
 def calculate_recovery_score(health_data, profile):
     """
-    Health Recovery Score (0-100) from sleep, activity, calories, and stress proxy.
-    Stress is inferred from sleep quality and activity (smartwatch-style metric).
+    Single-day Health Recovery Score (0-100). Uses same bands as 7-day so poor
+    habits (low sleep, low exercise, calorie imbalance) produce lower scores.
     Returns dict: { 'score': int 0-100, 'label': str }
     """
     if health_data is None:
         return {'score': None, 'label': 'No data'}
 
-    # Sleep quality: 0-30 points
+    # Sleep (max 30): ≥7→30, 6-7→20, 5-6→10, <5→5
     sleep_hours = health_data.sleep_hours
     if sleep_hours is None:
-        sleep_score = 0
-    elif 7 <= sleep_hours <= 8:
+        sleep_score = 5
+    elif sleep_hours >= 7:
         sleep_score = 30
-    elif 6 <= sleep_hours < 7 or 8 < sleep_hours <= 9:
-        sleep_score = 22
-    elif 5 <= sleep_hours < 6 or 9 < sleep_hours <= 10:
-        sleep_score = 14
+    elif sleep_hours >= 6:
+        sleep_score = 20
+    elif sleep_hours >= 5:
+        sleep_score = 10
     else:
         sleep_score = 5
 
-    # Activity: 0-25 points
+    # Activity (max 25): treat single day as proxy for weekly (30 min ≈ 150/week)
     exercise_minutes = health_data.exercise_minutes or 0
     if exercise_minutes >= 30:
         activity_score = 25
-    elif exercise_minutes >= 15:
+    elif exercise_minutes >= 20:
         activity_score = 18
-    elif exercise_minutes >= 1:
-        activity_score = 10
+    elif exercise_minutes >= 10:
+        activity_score = 12
     else:
-        activity_score = 0
+        activity_score = 5
 
-    # Calories vs TDEE: 0-25 points
-    tdee = profile.tdee
+    # Calories vs TDEE (max 25): within ±200→25, 200-400 diff→15, >400→5
+    tdee = getattr(profile, 'tdee', None) or 2000
     calories = health_data.total_calories or health_data.calories_consumed
-    if calories is None or tdee is None or tdee <= 0:
-        calorie_score = 12  # neutral when no data
+    if calories is None:
+        calorie_score = 5
     else:
-        ratio = calories / tdee
-        if 0.85 <= ratio <= 1.15:
+        diff = abs(calories - tdee)
+        if diff <= 200:
             calorie_score = 25
-        elif 0.75 <= ratio <= 1.25:
-            calorie_score = 18
-        elif 0.6 <= ratio <= 1.4:
-            calorie_score = 10
+        elif diff <= 400:
+            calorie_score = 15
         else:
             calorie_score = 5
 
-    # Stress proxy (0-20): recovery readiness from sleep + activity
-    stress_score = round((sleep_score / 30.0) * 10 + (activity_score / 25.0) * 10)
+    # Weight trend (max 20): single day has no trend; use neutral if no prior data
+    weight_score = 20
 
-    total = sleep_score + activity_score + calorie_score + stress_score
-    score = min(100, total)
+    total = sleep_score + activity_score + calorie_score + weight_score
+    score = min(100, max(0, total))
 
     if score >= 80:
         label = 'Excellent'
     elif score >= 60:
         label = 'Good'
     elif score >= 40:
-        label = 'Fair'
+        label = 'Moderate'
     else:
-        label = 'Poor recovery'
+        label = 'Poor'
 
-    return {'score': score, 'label': label}
+    return {'score': int(round(score)), 'label': label}
+
+
+def compute_recovery_score_7day(profile, health_data_list):
+    """
+    Health Recovery Score from last 7 days of HealthData (0-100).
+    Sleep (30) + Exercise (25) + Calorie balance (25) + Weight trend (20).
+    Recalculates whenever new data is logged.
+    Returns: { 'score': int 0-100, 'label': str, 'components': dict }
+    """
+    if not health_data_list:
+        return {'score': 0, 'label': 'Poor', 'components': {}}
+    data = sorted(health_data_list, key=lambda d: d.date)
+    window = data[-7:]  # most recent 7 records
+    tdee = getattr(profile, 'tdee', None) or 2000
+
+    def avg(lst, default=0):
+        return statistics.mean(lst) if lst else default
+
+    sleep_vals = [d.sleep_hours for d in window if d.sleep_hours is not None]
+    exercise_vals = [d.exercise_minutes for d in window if d.exercise_minutes is not None]
+    calorie_vals = [
+        (d.calories_consumed if d.calories_consumed is not None else d.total_calories)
+        for d in window if (d.calories_consumed is not None) or d.total_calories
+    ]
+    weight_vals = [d.weight for d in window if d.weight is not None]
+
+    average_sleep_hours = avg(sleep_vals, default=0)
+    total_weekly_exercise_minutes = sum(exercise_vals) if exercise_vals else 0
+    average_calories = avg(calorie_vals, default=tdee)
+    # Weight trend: change over the 7-day window (kg)
+    if len(weight_vals) >= 2:
+        weight_trend_7d = weight_vals[-1] - weight_vals[0]
+    else:
+        weight_trend_7d = 0
+
+    # Sleep Score (max 30)
+    if average_sleep_hours >= 7:
+        sleep_score = 30
+    elif average_sleep_hours >= 6:
+        sleep_score = 20
+    elif average_sleep_hours >= 5:
+        sleep_score = 10
+    else:
+        sleep_score = 5
+
+    # Exercise Score (max 25): total weekly minutes
+    if total_weekly_exercise_minutes >= 150:
+        exercise_score = 25
+    elif total_weekly_exercise_minutes >= 90:
+        exercise_score = 18
+    elif total_weekly_exercise_minutes >= 60:
+        exercise_score = 12
+    else:
+        exercise_score = 5
+
+    # Calorie Balance Score (max 25): difference from TDEE
+    diff = abs(average_calories - tdee)
+    if diff <= 200:
+        calorie_score = 25
+    elif diff <= 400:
+        calorie_score = 15
+    else:
+        calorie_score = 5
+
+    # Weight Trend Score (max 20): stable/decrease → 20, +1–2 kg → 12, >2 kg → 5
+    if weight_trend_7d <= 0:
+        weight_score = 20
+    elif weight_trend_7d <= 2:
+        weight_score = 12
+    else:
+        weight_score = 5
+
+    total = sleep_score + exercise_score + calorie_score + weight_score
+    score = min(100, max(0, total))
+
+    if score >= 80:
+        label = 'Excellent'
+    elif score >= 60:
+        label = 'Good'
+    elif score >= 40:
+        label = 'Moderate'
+    else:
+        label = 'Poor'
+
+    return {
+        'score': int(round(score)),
+        'label': label,
+        'components': {
+            'sleep_score': sleep_score,
+            'exercise_score': exercise_score,
+            'calorie_score': calorie_score,
+            'weight_score': weight_score,
+            'average_sleep_hours': round(average_sleep_hours, 1),
+            'total_weekly_exercise_minutes': int(total_weekly_exercise_minutes),
+            'average_calories_vs_tdee': round(average_calories - tdee, 0),
+            'weight_trend_last_7_days': round(weight_trend_7d, 2),
+        },
+    }
 from .ml_models.exercise_model import ExerciseRecommendationModel
 from .ml_models.sleep_model import SleepRecommendationModel
 from .ml_models.recovery_stability_model import RecoveryStabilityModel
-from .ml_models.correlation_model import CorrelationModel
 from .ml_models.habit_sensitivity_model import HabitSensitivityModel
 from .ml_models.disease_prediction_model import DiseasePredictionModel
 from .ml_models.simulator_model import HealthSimulatorModel
@@ -174,16 +269,17 @@ def generate_sleep_recommendation(user_profile, exercise_minutes=0):
 
 def generate_recovery_stability_analysis(user_profile, health_data_list):
     """
-    Generate recovery and stability analysis from recent health data (last 7–14 days).
-    Uses sleep, exercise, calories and logging behavior to derive:
-    - recovery_days (1–14)
-    - stability_score (0–100)
-    - consistency_score (0–100)
-    - streak_days (current logging streak)
-    - risk_level (Low / Medium / High)
-    - recommendations (behavior-based)
+    Generate recovery and stability analysis from the most recent 7 HealthData records.
+    Recalculates dynamically each time the user clicks "Generate Analysis".
+
+    Metrics: sleep_variation, exercise_consistency, calorie_balance_vs_TDEE, weight_trend.
+    Recovery score: Sleep (30) + Exercise (25) + Calorie (25) + Weight trend (20) = 0–100.
+    Risk from centralized calculate_health_risk().
     """
     from datetime import timedelta
+
+    def _avg_local(values):
+        return statistics.mean(values) if values else 0.0
 
     if not health_data_list:
         return {
@@ -202,15 +298,14 @@ def generate_recovery_stability_analysis(user_profile, health_data_list):
             'metrics': {},
         }
 
-    # Sort by date and focus on a recent 14‑day window (or fewer if limited data)
+    # Most recent 7 HealthData records (dynamic each time)
     data = sorted(health_data_list, key=lambda d: d.date)
-    end_date = data[-1].date
-    window_start = end_date - timedelta(days=13)
-    window = [d for d in data if d.date >= window_start] or data[-min(7, len(data)):]
-
-    # Helper series
-    def _avg(values):
-        return statistics.mean(values) if values else 0.0
+    window = data[-7:] if len(data) >= 7 else data
+    end_date = window[-1].date
+    window_start_d = window[0].date
+    expected_days = (end_date - window_start_d).days + 1
+    unique_dates_in_window = {d.date for d in window}
+    days_logged = len(unique_dates_in_window)
 
     sleep_values = [d.sleep_hours for d in window if d.sleep_hours is not None]
     exercise_values = [d.exercise_minutes for d in window if d.exercise_minutes is not None]
@@ -221,70 +316,22 @@ def generate_recovery_stability_analysis(user_profile, health_data_list):
     ]
     weight_values = [d.weight for d in window if d.weight is not None]
 
-    avg_sleep = _avg(sleep_values)
-    avg_exercise = _avg(exercise_values)
-    avg_calories = _avg(calorie_values)
+    avg_sleep = _avg_local(sleep_values)
+    avg_exercise = _avg_local(exercise_values)
+    avg_calories = _avg_local(calorie_values)
+    tdee = getattr(user_profile, 'tdee', None) or 2000
 
-    # --- Recovery days: better sleep + balanced calories => faster recovery; very high training load slows it ---
-    # Sleep factor (0.4–1.0)
-    if avg_sleep <= 0:
-        sleep_factor = 0.6
-    elif 7 <= avg_sleep <= 8:
-        sleep_factor = 1.0
-    elif 6 <= avg_sleep < 7 or 8 < avg_sleep <= 9:
-        sleep_factor = 0.85
-    elif 5 <= avg_sleep < 6 or 9 < avg_sleep <= 10:
-        sleep_factor = 0.7
-    else:
-        sleep_factor = 0.5
+    # --- Metrics recalculated each run ---
+    sleep_variation = round(_safe_std(sleep_values), 2) if len(sleep_values) >= 2 else 0
+    calorie_variation = round(_safe_std(calorie_values), 0) if len(calorie_values) >= 2 else 0
+    weight_trend = 0
+    if len(weight_values) >= 2:
+        weight_trend = round(weight_values[-1] - weight_values[0], 2)
+    days_with_exercise = sum(1 for d in window if (d.exercise_minutes or 0) >= 15)
+    exercise_consistency = round((days_with_exercise / len(window)) * 100, 0) if window else 0
+    calorie_balance_vs_TDEE = round((avg_calories or tdee) - tdee, 0) if tdee else 0
 
-    # Calorie balance factor (0.4–1.0) relative to TDEE
-    tdee = getattr(user_profile, 'tdee', None)
-    if tdee and avg_calories:
-        ratio = avg_calories / tdee
-        if 0.9 <= ratio <= 1.1:
-            cal_factor = 1.0
-        elif 0.8 <= ratio <= 1.2:
-            cal_factor = 0.85
-        elif 0.7 <= ratio <= 1.3:
-            cal_factor = 0.7
-        else:
-            cal_factor = 0.5
-    else:
-        cal_factor = 0.7
-
-    # Training load / fatigue factor (0.7–1.4) from average daily exercise minutes
-    if avg_exercise <= 20:
-        fatigue_factor = 0.8
-    elif avg_exercise <= 40:
-        fatigue_factor = 1.0
-    elif avg_exercise <= 60:
-        fatigue_factor = 1.2
-    else:
-        fatigue_factor = 1.4
-
-    base_recovery = 5.0
-    denominator = max(0.4, sleep_factor * 0.6 + cal_factor * 0.4)
-    raw_recovery_days = base_recovery * fatigue_factor / denominator
-    recovery_days = max(1.0, min(14.0, round(raw_recovery_days, 1)))
-
-    # --- Stability & consistency metrics reused from helpers (0–100) ---
-    consistency_result = calculate_consistency_score(window)
-    consistency_score = consistency_result['score']
-    details = consistency_result.get('details', {})
-    missed_days = details.get('missed_days', 0)
-    total_span_days = details.get('total_span_days', len({d.date for d in window}))
-    adherence_rate = 0.0
-    if total_span_days:
-        adherence_rate = round((total_span_days - missed_days) / total_span_days, 2)
-
-    stability_index = compute_stability_index(window)
-    stability_score = stability_index.get('score')
-    if stability_score is None:
-        stability_score = 50  # neutral when not enough variation data
-    stability_score = round(stability_score, 1)
-
-    # --- Current logging streak (consecutive calendar days with any entry) ---
+    # --- Current streak ---
     unique_dates = sorted({d.date for d in window}, reverse=True)
     streak_days = 0
     if unique_dates:
@@ -297,46 +344,58 @@ def generate_recovery_stability_analysis(user_profile, health_data_list):
             else:
                 break
 
-    # --- Risk level from stability score as requested ---
-    if stability_score > 80:
-        risk_level = 'Low'
-    elif 50 <= stability_score <= 80:
-        risk_level = 'Medium'
+    # --- Consistency score (days_logged / expected_days * 100) ---
+    total_span_days = expected_days
+    missed_days = max(0, expected_days - days_logged)
+    consistency_score = round((days_logged / expected_days) * 100, 1) if expected_days else 0
+    adherence_rate = round(days_logged / expected_days, 2) if expected_days else 0
+
+    # --- Recovery score from 7-day formula (Sleep 30 + Exercise 25 + Calorie 25 + Weight 20) ---
+    recovery_7d = compute_recovery_score_7day(user_profile, window)
+    stability_score = recovery_7d['score']
+
+    # --- Recovery days (1–14) from sleep/calorie factors ---
+    if avg_sleep <= 0:
+        sleep_factor = 0.6
+    elif 7 <= avg_sleep <= 8:
+        sleep_factor = 1.0
+    elif 6 <= avg_sleep < 7 or 8 < avg_sleep <= 9:
+        sleep_factor = 0.85
     else:
-        risk_level = 'High'
+        sleep_factor = 0.5
+    if tdee and avg_calories:
+        ratio = avg_calories / tdee
+        cal_factor = 1.0 if 0.9 <= ratio <= 1.1 else (0.85 if 0.8 <= ratio <= 1.2 else 0.6)
+    else:
+        cal_factor = 0.7
+    fatigue_factor = 1.2 if (avg_exercise or 0) > 45 else (1.0 if (avg_exercise or 0) > 20 else 0.8)
+    raw_recovery_days = 5.0 * fatigue_factor / max(0.4, sleep_factor * 0.6 + cal_factor * 0.4)
+    recovery_days = max(1.0, min(14.0, round(raw_recovery_days, 1)))
+
+    # --- Risk level from centralized function (same as Overview) ---
+    risk_result = calculate_health_risk(user_profile, window)
+    risk_level = risk_result['risk_level']
+    if risk_level == 'Moderate':
+        risk_level = 'Medium'
 
     is_stable = stability_score >= 50
 
-    # --- Behavior-based recommendations ---
+    # --- Recommendations ---
     recommendations = []
-
     if avg_sleep and avg_sleep < 6:
         recommendations.append("Improve sleep duration for better recovery (aim for 7–8 hours).")
-    elif avg_sleep and avg_sleep > 9:
-        recommendations.append("Your sleep duration is quite high; focus on consistent 7–8 hours for optimal recovery.")
-
-    if avg_exercise < 20:
-        recommendations.append("Increase physical activity for improved health (target at least 20–30 minutes most days).")
-    elif avg_exercise > 60:
-        recommendations.append("Your training load is high; schedule deliberate rest or light days to avoid overtraining.")
-
+    if (avg_exercise or 0) < 20:
+        recommendations.append("Increase physical activity (target at least 20–30 minutes most days).")
     if tdee and avg_calories:
-        cal_ratio = avg_calories / tdee
-        if cal_ratio < 0.8:
-            recommendations.append("Your calorie deficit is high; maintain a more balanced intake to support recovery.")
-        elif cal_ratio > 1.2:
-            recommendations.append("Your calorie intake is above your needs; reduce surplus to avoid long‑term weight gain.")
-
-    if consistency_score < 50:
-        recommendations.append("Work on logging most days each week to build consistent habits.")
-    elif consistency_score < 75:
-        recommendations.append("Your consistency is moderate; try to reduce missed days to stabilize recovery.")
-
-    if stability_score < 50:
-        recommendations.append("Large swings in sleep, weight, or calories reduce stability; aim for smaller day‑to‑day changes.")
-
+        r = avg_calories / tdee
+        if r < 0.8:
+            recommendations.append("Your calorie deficit is high; balance intake to support recovery.")
+        elif r > 1.2:
+            recommendations.append("Calorie intake is above needs; reduce surplus for long-term health.")
+    if consistency_score < 75:
+        recommendations.append("Log most days each week to improve consistency.")
     if not recommendations:
-        recommendations.append("Your recovery and stability look solid. Maintain your current routine and track progress.")
+        recommendations.append("Recovery and stability look solid. Maintain your routine and track progress.")
 
     metrics = {
         'window_days': total_span_days,
@@ -344,6 +403,11 @@ def generate_recovery_stability_analysis(user_profile, health_data_list):
         'avg_exercise_minutes': round(avg_exercise, 1) if avg_exercise else None,
         'avg_calories': round(avg_calories, 0) if avg_calories else None,
         'has_weight_data': bool(weight_values),
+        'sleep_variation': sleep_variation,
+        'calorie_variation': calorie_variation,
+        'calorie_balance_vs_TDEE': calorie_balance_vs_TDEE,
+        'weight_trend': weight_trend,
+        'exercise_consistency': exercise_consistency,
     }
 
     return {
@@ -360,10 +424,209 @@ def generate_recovery_stability_analysis(user_profile, health_data_list):
     }
 
 
-def generate_correlation_analysis(health_data_list):
-    """Generate behavior-cause correlation analysis"""
-    model = CorrelationModel()
-    return model.analyze_correlations(health_data_list)
+def generate_correlation_analysis(health_data_list, tdee=None):
+    """
+    Generate behavior-cause correlation analysis from user's actual health data.
+    Uses last 14–30 records. Computes Pearson correlations via numpy.
+    Correlates: sleep vs weight, calories vs weight, exercise vs weight,
+    exercise vs sleep, exercise vs recovery_score (when tdee provided).
+    Identifies strongest correlation and returns dynamic root causes and insights.
+    """
+    import numpy as np
+
+    tdee = tdee or 2000
+    if not health_data_list or len(health_data_list) < 2:
+        return {
+            'insights': [],
+            'correlations': {},
+            'root_causes': ['Not enough data. Log at least 2 days to see correlations.'],
+            'data_points': len(health_data_list) if health_data_list else 0,
+        }
+
+    # Use last 14–30 records, chronological order
+    data = sorted(health_data_list, key=lambda d: d.date)
+    n = min(30, max(14, len(data)))
+    window = data[-n:]
+
+    # Build aligned arrays (drop row only if weight is missing for weight-based correlations)
+    dates = []
+    weight = []
+    sleep = []
+    exercise = []
+    calories = []
+    recovery_scores = []  # per-day recovery: sleep/8*0.4 + exercise/30*0.3 + calories/tdee*0.2, scaled 0-100
+
+    for d in window:
+        w = d.weight
+        if w is None:
+            continue
+        dates.append(d.date)
+        weight.append(w)
+        sh = d.sleep_hours if d.sleep_hours is not None else np.nan
+        ex = float(d.exercise_minutes) if d.exercise_minutes is not None else np.nan
+        cal = d.calories_consumed if d.calories_consumed is not None else d.total_calories
+        cal = float(cal) if cal else np.nan
+        sleep.append(sh)
+        exercise.append(ex)
+        calories.append(cal)
+        # Daily recovery score (same weights as recovery analysis, no streak component)
+        ss = min(1.0, (sh if not np.isnan(sh) else 0) / 8.0)
+        ac = min(1.0, (ex if not np.isnan(ex) else 0) / 30.0)
+        cb = min(1.2, (cal / tdee) if not np.isnan(cal) and tdee else 0.8)
+        raw = ss * 0.4 + ac * 0.3 + cb * 0.2
+        recovery_scores.append(min(100, raw * 100))
+
+    weight = np.array(weight, dtype=float)
+    sleep = np.array(sleep, dtype=float)
+    exercise = np.array(exercise, dtype=float)
+    calories = np.array(calories, dtype=float)
+    recovery_scores = np.array(recovery_scores, dtype=float)
+    n_valid = len(weight)
+
+    if n_valid < 2:
+        return {
+            'insights': [],
+            'correlations': {},
+            'root_causes': ['Need at least 2 days with weight data for correlation.'],
+            'data_points': n_valid,
+        }
+
+    def safe_corr(x, y):
+        mask = ~(np.isnan(x) | np.isnan(y))
+        if np.sum(mask) < 2:
+            return np.nan
+        return np.corrcoef(x[mask], y[mask])[0, 1]
+
+    # Pairwise correlations: sleep/calories/exercise vs weight; exercise vs sleep; exercise vs recovery_score
+    corr_sleep_weight = safe_corr(sleep, weight)
+    corr_exercise_weight = safe_corr(exercise, weight)
+    corr_calories_weight = safe_corr(calories, weight)
+    corr_exercise_sleep = safe_corr(exercise, sleep)
+    corr_exercise_recovery = safe_corr(exercise, recovery_scores)
+
+    correlations = {}
+    if not np.isnan(corr_sleep_weight):
+        correlations['sleep_hours_vs_weight'] = round(float(corr_sleep_weight), 3)
+    if not np.isnan(corr_exercise_weight):
+        correlations['exercise_minutes_vs_weight'] = round(float(corr_exercise_weight), 3)
+    if not np.isnan(corr_calories_weight):
+        correlations['calories_consumed_vs_weight'] = round(float(corr_calories_weight), 3)
+    if not np.isnan(corr_exercise_sleep):
+        correlations['exercise_minutes_vs_sleep'] = round(float(corr_exercise_sleep), 3)
+    if not np.isnan(corr_exercise_recovery):
+        correlations['exercise_minutes_vs_recovery_score'] = round(float(corr_exercise_recovery), 3)
+
+    # List of (label, factor_name, value) for finding strongest
+    pairs = []
+    if not np.isnan(corr_sleep_weight):
+        pairs.append(('Sleep vs weight', 'sleep_weight', corr_sleep_weight))
+    if not np.isnan(corr_exercise_weight):
+        pairs.append(('Exercise vs weight', 'exercise_weight', corr_exercise_weight))
+    if not np.isnan(corr_calories_weight):
+        pairs.append(('Calories vs weight', 'calories_weight', corr_calories_weight))
+    if not np.isnan(corr_exercise_sleep):
+        pairs.append(('Exercise vs sleep', 'exercise_sleep', corr_exercise_sleep))
+    if not np.isnan(corr_exercise_recovery):
+        pairs.append(('Exercise vs recovery score', 'exercise_recovery', corr_exercise_recovery))
+
+    # Strongest by absolute value
+    if not pairs:
+        strongest_label = None
+        strongest_value = 0.0
+        strongest_key = None
+    else:
+        strongest = max(pairs, key=lambda x: abs(x[2]))
+        strongest_label, strongest_key, strongest_value = strongest
+
+    # Build insights list (one per correlation) for template
+    insights = []
+    root_causes = []
+
+    def add_insight(behavior, correlation_value, insight_text, recommendation, impact='Neutral'):
+        insights.append({
+            'behavior': behavior,
+            'correlation': round(correlation_value, 2),
+            'insight': insight_text,
+            'recommendation': recommendation,
+            'impact': impact,
+        })
+
+    # Sleep vs weight
+    if not np.isnan(corr_sleep_weight):
+        c = float(corr_sleep_weight)
+        if c < -0.5:
+            add_insight('Sleep duration', c, 'More sleep is associated with weight reduction.', 'Aim for 7–8 hours consistently.', 'Positive')
+            root_causes.append('Low sleep may be contributing to weight gain.')
+        elif c > 0.5:
+            add_insight('Sleep duration', c, 'Higher sleep hours in your log correlate with higher weight.', 'Focus on sleep quality and consistent timing.', 'Negative')
+            root_causes.append('Low sleep may be contributing to weight management challenges.')
+        elif abs(c) > 0.2:
+            add_insight('Sleep duration', c, f'Slight correlation between sleep and weight (r={c:.2f}).', 'Keep logging to clarify the pattern.', 'Neutral')
+
+    # Exercise vs weight
+    if not np.isnan(corr_exercise_weight):
+        c = float(corr_exercise_weight)
+        if c < -0.5:
+            add_insight('Exercise', c, 'More exercise is associated with lower weight.', 'Maintain or increase activity.', 'Positive')
+            root_causes.append('Low exercise may be contributing to weight gain.')
+        elif c > 0.5:
+            add_insight('Exercise', c, 'Higher exercise correlates with higher weight in your log.', 'Review other factors (e.g. diet).', 'Negative')
+            root_causes.append('Exercise pattern may be linked to weight in your data.')
+        elif abs(c) > 0.2:
+            add_insight('Exercise', c, f'Moderate correlation between exercise and weight (r={c:.2f}).', 'Keep consistent activity.', 'Neutral')
+
+    # Calories vs weight
+    if not np.isnan(corr_calories_weight):
+        c = float(corr_calories_weight)
+        if c > 0.5:
+            add_insight('Calorie intake', c, 'High calorie intake is correlated with increasing weight.', 'Consider a moderate calorie deficit or balance.', 'Negative')
+            root_causes.append('High calorie intake is correlated with increasing BMI.')
+        elif c < -0.5:
+            add_insight('Calorie intake', c, 'Lower calories correlate with weight reduction.', 'Maintain a sustainable deficit.', 'Positive')
+            root_causes.append('Calorie deficit is associated with weight loss in your data.')
+        elif abs(c) > 0.2:
+            add_insight('Calorie intake', c, f'Moderate correlation between calories and weight (r={c:.2f}).', 'Monitor portion sizes and consistency.', 'Neutral')
+
+    # Exercise vs sleep
+    if not np.isnan(corr_exercise_sleep):
+        c = float(corr_exercise_sleep)
+        if c > 0.4:
+            add_insight('Exercise & Sleep', c, 'Days with more exercise tend to have longer sleep.', 'Keep exercising to support sleep.', 'Positive')
+        elif c < -0.4:
+            add_insight('Exercise & Sleep', c, 'More exercise correlates with less sleep in your log.', 'Consider timing of workouts or recovery.', 'Negative')
+
+    # Exercise vs recovery score
+    if not np.isnan(corr_exercise_recovery):
+        c = float(corr_exercise_recovery)
+        if c > 0.4:
+            add_insight('Exercise vs Recovery', c, 'More exercise is improving recovery scores.', 'Keep up consistent activity to support recovery.', 'Positive')
+            root_causes.append('More exercise is improving recovery scores.')
+        elif c < -0.4:
+            add_insight('Exercise vs Recovery', c, 'Higher exercise days correlate with lower recovery in your data.', 'Check sleep and calorie balance on high-activity days.', 'Negative')
+        elif abs(c) > 0.2:
+            add_insight('Exercise vs Recovery', c, f'Moderate link between exercise and recovery (r={c:.2f}).', 'Balance activity with rest and nutrition.', 'Neutral')
+
+    # If no strong correlation found, add a neutral insight and root cause
+    if not root_causes:
+        root_causes.append('No strong behavioral correlation detected. Keep logging for clearer patterns.')
+    if not insights:
+        insights.append({
+            'behavior': 'General',
+            'correlation': round(strongest_value, 2) if pairs else 0,
+            'insight': 'No strong correlation in current data. More data points may reveal links.',
+            'recommendation': 'Continue logging sleep, exercise, and calories.',
+            'impact': 'Neutral',
+        })
+
+    # Limit root causes for display
+    root_causes = root_causes[:3]
+
+    return {
+        'insights': insights,
+        'correlations': correlations,
+        'root_causes': root_causes,
+        'data_points': n_valid,
+    }
 
 
 def generate_habit_sensitivity_analysis(user_profile, health_data_list):
@@ -819,146 +1082,137 @@ def compute_health_balance_dimensions(user_profile, health_data_list, recovery_t
 
 
 
-def compute_lifestyle_risk_predictions(user_profile, health_data_list, consistency_summary=None, drift_alerts=None):
+def calculate_health_risk(profile, recent_health_data):
     """
-    Lifestyle-based (non-diagnostic) risk classification for Diabetes, Cholesterol, Heart.
-    Uses trends in BMI, sleep, exercise, calories, consistency, and drifts.
+    Centralized health risk calculation. All modules (Recovery, Overview lifestyle risk,
+    alerts) must use this so risk is consistent and never contradictory.
+
+    Point system:
+    - BMI: <25 → 0, 25–30 → 10, >30 → 20
+    - Sleep: ≥7 hrs → 0, 6–7 → 5, <6 → 10
+    - Exercise (weekly): ≥150 min/week → 0, 60–150 → 5, <60 → 10
+    - Calorie balance vs TDEE: close → 0, moderate → 5, large imbalance → 10
+    - Consistency score: >80 → 0, 60–80 → 5, <60 → 10
+
+    Total risk: 0–15 Low, 16–30 Moderate, >30 High
     """
-    if consistency_summary is None:
-        consistency_summary = calculate_consistency_score(health_data_list)
-    if drift_alerts is None:
-        drift_alerts = detect_health_drift(health_data_list)
-
-    data = sorted(health_data_list, key=lambda d: d.date)
-
     def avg(lst, default=0):
         return statistics.mean(lst) if lst else default
 
-    bmi_latest = user_profile.bmi
-    bmi_trend = 0
-    if len(data) >= 2:
-        bmi_first = data[0].weight / ((user_profile.height / 100) ** 2)
-        bmi_trend = bmi_latest - bmi_first
+    data = sorted(recent_health_data, key=lambda d: d.date) if recent_health_data else []
+    tdee = getattr(profile, 'tdee', None) or 2000
+    bmi = getattr(profile, 'bmi', None)
+    if bmi is None and getattr(profile, 'height', None) and data:
+        w = data[-1].weight if data else None
+        if w is not None:
+            bmi = w / ((profile.height / 100) ** 2)
+    if bmi is None:
+        bmi = 22.0
+
+    # Consistency score (0–100) from same recent data
+    consistency_score_val = 0
+    if data:
+        consistency_result = calculate_consistency_score(data)
+        consistency_score_val = consistency_result.get('score', 0)
 
     sleep_avg = avg([d.sleep_hours for d in data if d.sleep_hours is not None], default=7)
-    exercise_avg = avg([d.exercise_minutes for d in data if d.exercise_minutes is not None], default=0)
+    exercise_minutes_list = [d.exercise_minutes for d in data if d.exercise_minutes is not None]
+    exercise_weekly = sum(exercise_minutes_list) if exercise_minutes_list else 0
+    # If we have fewer than 7 days, scale to weekly (e.g. 3 days * 20 min = 60, scale to ~140/week)
+    if data and len(data) < 7:
+        span_days = max(1, (data[-1].date - data[0].date).days + 1)
+        exercise_weekly = exercise_weekly * (7.0 / span_days) if span_days else exercise_weekly
     calories_avg = avg([
         d.calories_consumed if d.calories_consumed is not None else d.total_calories
         for d in data if (d.calories_consumed is not None) or d.total_calories
-    ], default=user_profile.tdee if hasattr(user_profile, 'tdee') else 2000)
-    calories_surplus = calories_avg - (user_profile.tdee if hasattr(user_profile, 'tdee') else 2000)
+    ], default=tdee)
 
-    drift_flags = {
-        'weight_up': any(d['metric'] == 'Weight' and d['direction'] == 'increasing' for d in drift_alerts),
-        'sleep_down': any(d['metric'] == 'Sleep' and d['direction'] == 'decreasing' for d in drift_alerts),
-        'exercise_down': any(d['metric'] == 'Exercise' and d['direction'] == 'decreasing' for d in drift_alerts),
+    # Points (0, 5, or 10/20)
+    if bmi < 25:
+        bmi_pts = 0
+    elif bmi <= 30:
+        bmi_pts = 10
+    else:
+        bmi_pts = 20
+
+    if sleep_avg >= 7:
+        sleep_pts = 0
+    elif sleep_avg >= 6:
+        sleep_pts = 5
+    else:
+        sleep_pts = 10
+
+    if exercise_weekly >= 150:
+        exercise_pts = 0
+    elif exercise_weekly >= 60:
+        exercise_pts = 5
+    else:
+        exercise_pts = 10
+
+    # Calories vs TDEE: within ±200 → 0, ±200–400 → 5, >400 imbalance → 10
+    cal_diff = abs(calories_avg - tdee) if tdee else 0
+    if cal_diff <= 200:
+        calorie_pts = 0
+    elif cal_diff <= 400:
+        calorie_pts = 5
+    else:
+        calorie_pts = 10
+
+    if consistency_score_val > 80:
+        consistency_pts = 0
+    elif consistency_score_val > 60:
+        consistency_pts = 5
+    else:
+        consistency_pts = 10
+
+    total_points = bmi_pts + sleep_pts + exercise_pts + calorie_pts + consistency_pts
+    if total_points <= 15:
+        risk_level = 'Low'
+    elif total_points <= 30:
+        risk_level = 'Moderate'
+    else:
+        risk_level = 'High'
+
+    return {
+        'risk_score': total_points,
+        'risk_level': risk_level,
+        'components': {
+            'bmi_points': bmi_pts,
+            'sleep_points': sleep_pts,
+            'exercise_points': exercise_pts,
+            'calorie_points': calorie_pts,
+            'consistency_points': consistency_pts,
+        },
+        'bmi': round(bmi, 1),
+        'sleep_avg': round(sleep_avg, 1),
+        'exercise_weekly': round(exercise_weekly, 0),
+        'calories_avg': round(calories_avg, 0),
+        'consistency_score': round(consistency_score_val, 1),
+        'tdee': tdee,
     }
 
-    consistency_score = consistency_summary.get('score', 0)
 
-    def classify_risk(points):
-        if points >= 4:
-            return 'High'
-        if points >= 2:
-            return 'Moderate'
-        return 'Low'
-
-    risks = []
+def compute_lifestyle_risk_predictions(user_profile, health_data_list, consistency_summary=None, drift_alerts=None):
+    """
+    Lifestyle-based (non-diagnostic) risk. Uses centralized calculate_health_risk()
+    so Recovery and Overview show the same risk level.
+    """
+    # Use last 30 days of data for risk (or all if less)
+    data = sorted(health_data_list, key=lambda d: d.date) if health_data_list else []
+    recent = data[-30:] if len(data) > 30 else data
+    result = calculate_health_risk(user_profile, recent)
+    risk_level = result['risk_level']
+    risk_score = result['risk_score']
     base_disclaimer = "Lifestyle-based risk estimate only. Not a diagnosis. Consult a healthcare professional for medical advice."
-
-    # Diabetes
-    diabetes_points = 0
-    if bmi_latest >= 30 or bmi_trend > 1:
-        diabetes_points += 2
-    elif bmi_latest >= 27:
-        diabetes_points += 1
-    if sleep_avg < 6:
-        diabetes_points += 2
-    elif sleep_avg < 7:
-        diabetes_points += 1
-    if exercise_avg < 30:
-        diabetes_points += 2
-    elif exercise_avg < 60:
-        diabetes_points += 1
-    if calories_surplus > 200:
-        diabetes_points += 1
-    if consistency_score < 50:
-        diabetes_points += 1
-    if drift_flags['weight_up'] or drift_flags['sleep_down']:
-        diabetes_points += 1
-    risks.append({
-        'condition': 'Diabetes (lifestyle risk)',
-        'risk_level': classify_risk(diabetes_points),
-        'drivers': [
-            f'BMI {bmi_latest:.1f} (trend {"+" if bmi_trend>=0 else ""}{bmi_trend:.1f})',
-            f'Sleep avg {sleep_avg:.1f}h',
-            f'Exercise avg {exercise_avg:.0f} min',
-            f'Calories vs TDEE: {calories_surplus:+.0f} cal',
-            f'Consistency score: {consistency_score:.0f}',
-        ],
-        'disclaimer': base_disclaimer,
-    })
-
-    # Cholesterol
-    chol_points = 0
-    if bmi_latest >= 30:
-        chol_points += 2
-    elif bmi_latest >= 27:
-        chol_points += 1
-    if calories_surplus > 200:
-        chol_points += 2
-    elif calories_surplus > 50:
-        chol_points += 1
-    if exercise_avg < 40:
-        chol_points += 2
-    elif exercise_avg < 80:
-        chol_points += 1
-    if sleep_avg < 6.5:
-        chol_points += 1
-    if drift_flags['weight_up'] or drift_flags['exercise_down']:
-        chol_points += 1
-    risks.append({
-        'condition': 'Cholesterol (lifestyle risk)',
-        'risk_level': classify_risk(chol_points),
-        'drivers': [
-            f'BMI {bmi_latest:.1f}',
-            f'Calories vs TDEE: {calories_surplus:+.0f} cal',
-            f'Exercise avg {exercise_avg:.0f} min',
-            f'Sleep avg {sleep_avg:.1f}h',
-            f'Drift signals: weight up {drift_flags["weight_up"]}, exercise down {drift_flags["exercise_down"]}',
-        ],
-        'disclaimer': base_disclaimer,
-    })
-
-    # Heart
-    heart_points = 0
-    if bmi_latest >= 30:
-        heart_points += 2
-    elif bmi_latest >= 27:
-        heart_points += 1
-    if exercise_avg < 30:
-        heart_points += 2
-    elif exercise_avg < 60:
-        heart_points += 1
-    if sleep_avg < 6.5:
-        heart_points += 1
-    if consistency_score < 50:
-        heart_points += 1
-    if drift_flags['weight_up'] or drift_flags['sleep_down'] or drift_flags['exercise_down']:
-        heart_points += 1
-    risks.append({
-        'condition': 'Heart (lifestyle risk)',
-        'risk_level': classify_risk(heart_points),
-        'drivers': [
-            f'BMI {bmi_latest:.1f} (trend {"+" if bmi_trend>=0 else ""}{bmi_trend:.1f})',
-            f'Exercise avg {exercise_avg:.0f} min',
-            f'Sleep avg {sleep_avg:.1f}h',
-            f'Consistency score: {consistency_score:.0f}',
-            f'Drift signals: weight up {drift_flags["weight_up"]}, sleep down {drift_flags["sleep_down"]}',
-        ],
-        'disclaimer': base_disclaimer,
-    })
-
+    drivers = [
+        f"Unified risk score: {risk_score} points (0–15 Low, 16–30 Moderate, >30 High)",
+        f"BMI {result['bmi']} ({result['components']['bmi_points']} pts) · Sleep {result['sleep_avg']}h ({result['components']['sleep_points']} pts) · Exercise {result['exercise_weekly']} min/week ({result['components']['exercise_points']} pts) · Calories vs TDEE ({result['components']['calorie_points']} pts) · Consistency {result['consistency_score']}% ({result['components']['consistency_points']} pts)",
+    ]
+    risks = [
+        {'condition': 'Diabetes (lifestyle risk)', 'risk_level': risk_level, 'drivers': drivers, 'disclaimer': base_disclaimer},
+        {'condition': 'Cholesterol (lifestyle risk)', 'risk_level': risk_level, 'drivers': drivers, 'disclaimer': base_disclaimer},
+        {'condition': 'Heart (lifestyle risk)', 'risk_level': risk_level, 'drivers': drivers, 'disclaimer': base_disclaimer},
+    ]
     return risks
 
 
@@ -1097,32 +1351,41 @@ def assess_progress(user_profile, health_data_list):
 
 
 def assess_health_risks(user_profile, health_data_list):
-    """Assess health risks and generate alerts"""
+    """
+    Assess health risks and generate alerts. Uses centralized calculate_health_risk()
+    so risk_level on all alerts matches Overview and Recovery (no conflicting Low vs High).
+    """
     alerts = []
-    
+    recent = list(health_data_list)[-30:] if health_data_list else []
+    unified = calculate_health_risk(user_profile, recent)
+    # Use same risk level for all alerts (Low -> low, Moderate -> medium, High -> high)
+    risk_level = unified['risk_level'].lower()
+    if risk_level == 'moderate':
+        risk_level = 'medium'
+
     # BMI Risk
     if user_profile.bmi < 18.5:
         alerts.append({
-            'risk_level': 'medium',
+            'risk_level': risk_level,
             'alert_type': 'bmi',
             'message': f'Your BMI is {user_profile.bmi:.1f} (Underweight). Consider consulting a healthcare provider.',
             'recommendations': ['Increase calorie intake', 'Focus on nutrient-dense foods', 'Consult nutritionist']
         })
     elif user_profile.bmi > 30:
         alerts.append({
-            'risk_level': 'high',
+            'risk_level': risk_level,
             'alert_type': 'bmi',
             'message': f'Your BMI is {user_profile.bmi:.1f} (Obese). This increases risk of various health conditions.',
             'recommendations': ['Weight loss program', 'Regular exercise', 'Consult healthcare provider', 'Diet modification']
         })
     elif user_profile.bmi > 25:
         alerts.append({
-            'risk_level': 'medium',
+            'risk_level': risk_level,
             'alert_type': 'bmi',
             'message': f'Your BMI is {user_profile.bmi:.1f} (Overweight). Consider weight management.',
             'recommendations': ['Increase physical activity', 'Calorie deficit', 'Regular exercise']
         })
-    
+
     # Sleep Risk
     if health_data_list:
         sleep_data = [d.sleep_hours for d in health_data_list if d.sleep_hours]
@@ -1130,19 +1393,19 @@ def assess_health_risks(user_profile, health_data_list):
             avg_sleep = sum(sleep_data) / len(sleep_data)
             if avg_sleep < 6:
                 alerts.append({
-                    'risk_level': 'high',
+                    'risk_level': risk_level,
                     'alert_type': 'sleep',
                     'message': f'Average sleep is only {avg_sleep:.1f} hours. Chronic sleep deprivation increases disease risk.',
                     'recommendations': ['Improve sleep schedule', 'Aim for 7-9 hours', 'Sleep hygiene practices', 'Consult sleep specialist if persistent']
                 })
             elif avg_sleep < 7:
                 alerts.append({
-                    'risk_level': 'medium',
+                    'risk_level': risk_level,
                     'alert_type': 'sleep',
                     'message': f'Average sleep is {avg_sleep:.1f} hours. Aim for 7-9 hours for optimal health.',
                     'recommendations': ['Improve sleep duration', 'Consistent sleep schedule', 'Better sleep hygiene']
                 })
-    
+
     # Exercise Risk
     if health_data_list:
         exercise_data = [d.exercise_minutes for d in health_data_list if d.exercise_minutes and d.exercise_minutes > 0]
@@ -1150,19 +1413,19 @@ def assess_health_risks(user_profile, health_data_list):
             avg_exercise = sum(exercise_data) / len(exercise_data)
             if avg_exercise < 20:
                 alerts.append({
-                    'risk_level': 'high',
+                    'risk_level': risk_level,
                     'alert_type': 'exercise',
                     'message': f'Average exercise is only {avg_exercise:.0f} minutes/day. Insufficient physical activity increases health risks.',
                     'recommendations': ['Increase exercise to 30+ minutes daily', 'Start with walking', 'Gradually increase intensity', 'Consult fitness trainer']
                 })
         elif user_profile.activity_level in ['sedentary', 'light']:
             alerts.append({
-                'risk_level': 'medium',
+                'risk_level': risk_level,
                 'alert_type': 'exercise',
                 'message': 'Low activity level detected. Regular exercise is essential for health.',
                 'recommendations': ['Start with 15-20 min daily', 'Gradually increase', 'Find activities you enjoy']
             })
-    
+
     return alerts
 
 
@@ -1190,4 +1453,81 @@ def predict_disease_risks(user_profile, health_data_list):
     )
     
     return predictions
+
+def compute_recovery_score_7day(profile, health_data):
+    if not health_data:
+        return 50
+
+    # Last 7 days data
+    last7 = health_data[:7]
+
+    sleep_avg = sum([d.sleep_hours or 0 for d in last7]) / len(last7)
+    exercise_total = sum([d.exercise_minutes or 0 for d in last7])
+    calories_avg = sum([d.calories_consumed or 0 for d in last7]) / len(last7)
+    weights = [d.weight for d in last7 if d.weight]
+
+    # Sleep Score
+    if sleep_avg >= 7:
+        sleep_score = 30
+    elif sleep_avg >= 6:
+        sleep_score = 20
+    elif sleep_avg >= 5:
+        sleep_score = 10
+    else:
+        sleep_score = 5
+
+    # Exercise Score
+    if exercise_total >= 150:
+        exercise_score = 25
+    elif exercise_total >= 90:
+        exercise_score = 18
+    elif exercise_total >= 60:
+        exercise_score = 12
+    else:
+        exercise_score = 5
+
+    # Calorie Score
+    tdee = profile.tdee
+    diff = abs(calories_avg - tdee)
+
+    if diff <= 200:
+        calorie_score = 25
+    elif diff <= 400:
+        calorie_score = 15
+    else:
+        calorie_score = 5
+
+    # Weight Trend
+    if len(weights) >= 2:
+        change = weights[-1] - weights[0]
+    else:
+        change = 0
+
+    if change <= 0:
+        weight_score = 20
+    elif change <= 2:
+        weight_score = 12
+    else:
+        weight_score = 5
+
+    score = sleep_score + exercise_score + calorie_score + weight_score
+
+    if score >= 80:
+        status = "Excellent"
+    elif score >= 60:
+        status = "Good"
+    elif score >= 40:
+        status = "Moderate"
+    else:
+        status = "Poor"
+
+    return {
+        "score": score,
+        "status": status,
+        "sleep_score": sleep_score,
+        "exercise_score": exercise_score,
+        "calorie_score": calorie_score,
+        "weight_score": weight_score,
+    }
+
 

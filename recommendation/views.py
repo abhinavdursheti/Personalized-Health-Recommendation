@@ -14,7 +14,7 @@ from .utils import (
     generate_recovery_stability_analysis, generate_correlation_analysis, generate_habit_sensitivity_analysis,
     assess_progress, assess_health_risks, predict_disease_risks, calculate_consistency_score,
     detect_health_drift, suggest_effort_to_impact_actions, compute_lifestyle_risk_predictions,
-    calculate_recovery_score, compute_stability_index, compute_disease_risk_momentum,
+    calculate_recovery_score, compute_recovery_score_7day, compute_stability_index, compute_disease_risk_momentum,
     estimate_biological_age, compute_health_balance_dimensions,
 )
 from .ml_models.simulator_model import HealthSimulatorModel
@@ -99,13 +99,14 @@ def _build_dashboard_context(request):
                     recommendations=alert_data['recommendations']
                 )
 
-    # Health Recovery Score (today & yesterday)
+    # Health Recovery Score (today, yesterday, and last 7 days - data-driven)
     from datetime import timedelta
     today_data = HealthData.objects.filter(user=request.user, date=today).first()
     yesterday = today - timedelta(days=1)
     yesterday_data = HealthData.objects.filter(user=request.user, date=yesterday).first()
     recovery_today = calculate_recovery_score(today_data, profile)
     recovery_yesterday = calculate_recovery_score(yesterday_data, profile)
+    recovery_7day = compute_recovery_score_7day(profile, list(health_data_list))
 
     # Health Stability Index (predictive behavior score)
     stability_index = compute_stability_index(health_data_list)
@@ -130,6 +131,7 @@ def _build_dashboard_context(request):
         'lifestyle_risks': lifestyle_risks,
         'recovery_today': recovery_today,
         'recovery_yesterday': recovery_yesterday,
+        'recovery_7day': recovery_7day,
         'stability_index': stability_index,
     }
 
@@ -1005,7 +1007,10 @@ def analytics_correlation(request):
         messages.warning(request, 'Please complete your profile first.')
         return redirect('setup_profile')
         
-    health_data_list = list(HealthData.objects.filter(user=request.user).order_by('date'))
+    # Fetch the last 30 entries for analysis, ordered by date ascending for sequential analysis
+    health_data_list = list(HealthData.objects.filter(user=request.user).order_by('-date')[:30])
+    health_data_list.reverse() # Reverse to chronological order for pandas analysis
+    
     has_sufficient_data = len(health_data_list) >= 1
     
     if request.method == 'POST':
@@ -1013,8 +1018,9 @@ def analytics_correlation(request):
             messages.error(request, 'Not enough data for analysis.')
             return redirect('analytics_correlation')
 
-        analysis_data = generate_correlation_analysis(health_data_list)
-        
+        tdee = getattr(profile, 'tdee', None)
+        analysis_data = generate_correlation_analysis(health_data_list, tdee=tdee)
+
         # Save to database
         BehaviorCorrelationAnalysis.objects.create(
             user=request.user,
@@ -1025,9 +1031,9 @@ def analytics_correlation(request):
         )
         messages.success(request, 'Correlation analysis generated successfully!')
         return redirect('analytics_correlation')
-    
+
     correlation_analysis = BehaviorCorrelationAnalysis.objects.filter(user=request.user).order_by('-created_at').first()
-    
+
     return render(request, 'analytics_correlation.html', {
         'correlation_analysis': correlation_analysis,
         'has_sufficient_data': has_sufficient_data
@@ -1209,13 +1215,16 @@ def generate_correlation_analysis_view(request):
     except UserProfile.DoesNotExist:
         return JsonResponse({'error': 'Profile not found'}, status=400)
     
-    health_data_list = list(HealthData.objects.filter(user=request.user).order_by('date'))
+    # Fetch the last 30 entries for analysis, ordered by date ascending for sequential analysis
+    health_data_list = list(HealthData.objects.filter(user=request.user).order_by('-date')[:30])
+    health_data_list.reverse() # Reverse to chronological order for pandas analysis
     
     if len(health_data_list) < 1:
         return JsonResponse({'error': 'Add at least 1 data point for analysis'}, status=400)
-    
-    analysis_data = generate_correlation_analysis(health_data_list)
-    
+
+    tdee = getattr(profile, 'tdee', None)
+    analysis_data = generate_correlation_analysis(health_data_list, tdee=tdee)
+
     # Save to database
     analysis = BehaviorCorrelationAnalysis.objects.create(
         user=request.user,

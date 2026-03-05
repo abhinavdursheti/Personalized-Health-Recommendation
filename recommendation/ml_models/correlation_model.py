@@ -55,13 +55,14 @@ class CorrelationModel:
     
     def analyze_correlations(self, health_data_list):
         """Analyze correlations between behaviors and outcomes"""
-        if not health_data_list or len(health_data_list) < 1:
+        # Relax the initial filtering to ensure we calculate actual correlations
+        if not health_data_list or len(health_data_list) < 2:
             return {
                 'insights': [],
                 'correlations': {},
-                'root_causes': ['Continue tracking to identify patterns. More data will provide better insights.'],
-                'data_points': 0,
-                'message': 'Add more data points for detailed correlation analysis'
+                'root_causes': ['Not enough data. Please log at least 2 days of data to see correlations.'],
+                'data_points': len(health_data_list),
+                'message': f'Analyzed {len(health_data_list)} data points'
             }
         
         # Prepare data
@@ -70,102 +71,144 @@ class CorrelationModel:
             data.append({
                 'date': entry.date,
                 'weight': entry.weight,
-                'sleep_hours': entry.sleep_hours if entry.sleep_hours else None,
-                'exercise_minutes': entry.exercise_minutes if entry.exercise_minutes else None,
-                'calories_consumed': entry.calories_consumed if entry.calories_consumed else None,
+                'sleep_hours': entry.sleep_hours if entry.sleep_hours is not None else np.nan,
+                'exercise_minutes': entry.exercise_minutes if entry.exercise_minutes is not None else np.nan,
+                'calories_consumed': entry.calories_consumed if entry.calories_consumed is not None else np.nan,
             })
         
         df = pd.DataFrame(data)
-        df = df.sort_values('date')
+        df = df.sort_values('date').reset_index(drop=True)
         
-        # Calculate weight change
-        df['weight_change'] = df['weight'].diff()
-        df['weight_trend'] = df['weight'].rolling(window=7, min_periods=1).mean()
+        # Calculate daily weight change, allowing for overall drift understanding
+        df['weight_change'] = df['weight'].diff().fillna(0)
+        
+        # In a real scenario, health data has many missing values.
+        # We'll forward-fill numerical features up to 3 days to establish a trend, then drop remaining NaNs.
+        df[['sleep_hours', 'exercise_minutes', 'calories_consumed']] = df[['sleep_hours', 'exercise_minutes', 'calories_consumed']].ffill(limit=3)
+        df[['sleep_hours', 'exercise_minutes', 'calories_consumed']] = df[['sleep_hours', 'exercise_minutes', 'calories_consumed']].bfill(limit=1)
+        
+        # Calculate correlations vs weight (not weight_change, as the user wants general trends)
+        # Weight change could also be used depending on the exact health philosophy. 
+        # Using pure 'weight' matches the examples: "sleep_hours vs weight"
         
         insights = []
         correlations = {}
         root_causes = []
         
-        # Analyze sleep correlation
-        if df['sleep_hours'].notna().sum() >= 2:
-            sleep_data = df[df['sleep_hours'].notna()]
-            if len(sleep_data) > 1:
-                corr_sleep = sleep_data['sleep_hours'].corr(sleep_data['weight_change'])
-                if not np.isnan(corr_sleep):
-                    correlations['sleep'] = round(corr_sleep, 3)
-                    if abs(corr_sleep) > 0.3:
-                        if corr_sleep < -0.3:
-                            insights.append({
-                                'behavior': 'Sleep Hours',
-                                'impact': 'Positive',
-                                'correlation': round(corr_sleep, 2),
-                                'insight': f'When you sleep more, your weight tends to decrease. Optimal: 7-9 hours.',
-                                'recommendation': 'Maintain consistent sleep schedule of 7-9 hours'
-                            })
-                            root_causes.append('Insufficient sleep may be contributing to weight management challenges')
-                        else:
-                            insights.append({
-                                'behavior': 'Sleep Hours',
-                                'impact': 'Negative',
-                                'correlation': round(corr_sleep, 2),
-                                'insight': f'Excessive sleep may be affecting your weight. Target: 7-9 hours.',
-                                'recommendation': 'Maintain optimal sleep duration of 7-9 hours'
-                            })
+        def add_insight(behavior, aspect, corr_val, target_col):
+            # Dynamic correlation thresholds
+            if corr_val < -0.5:
+                # Strong negative
+                msg = f"Higher {behavior.lower()} tracking appears associated with lower {target_col.lower()}"
+                impact = "Positive" if "weight" in target_col else "Negative"
+                rec = f"Continue optimizing your {behavior.lower()}"
+                insights.append({'behavior': behavior, 'impact': impact, 'correlation': round(corr_val, 2), 'insight': msg, 'recommendation': rec})
+                root_causes.append(f"Strong inverse relationship detected between {behavior.lower()} and {target_col.lower()}")
+            elif corr_val < -0.2:
+                # Weak negative
+                msg = f"Slight tendency for {target_col.lower()} to decrease when {behavior.lower()} increases"
+                insights.append({'behavior': behavior, 'impact': 'Neutral', 'correlation': round(corr_val, 2), 'insight': msg, 'recommendation': f"Monitor your {behavior.lower()} for further changes."})
+            elif corr_val > 0.5:
+                # Strong positive
+                msg = f"Higher {behavior.lower()} tracking appears linked to higher {target_col.lower()}"
+                impact = "Negative" if "weight" in target_col else "Positive"
+                rec = f"Review your {behavior.lower()} targets"
+                insights.append({'behavior': behavior, 'impact': impact, 'correlation': round(corr_val, 2), 'insight': msg, 'recommendation': rec})
+                root_causes.append(f"Strong direct relationship detected between {behavior.lower()} and {target_col.lower()}")
+            elif corr_val > 0.2:
+                # Weak positive
+                msg = f"Slight tendency for {target_col.lower()} to increase alongside {behavior.lower()}"
+                insights.append({'behavior': behavior, 'impact': 'Neutral', 'correlation': round(corr_val, 2), 'insight': msg, 'recommendation': f"Keep an eye on how {behavior.lower()} affects your {target_col.lower()}"})
+            else:
+                pass # Between -0.2 and 0.2: "No strong behavioral correlation detected."
         
-        # Analyze exercise correlation
-        if df['exercise_minutes'].notna().sum() >= 2:
-            exercise_data = df[df['exercise_minutes'].notna()]
-            if len(exercise_data) > 1:
-                corr_exercise = exercise_data['exercise_minutes'].corr(exercise_data['weight_change'])
-                if not np.isnan(corr_exercise):
-                    correlations['exercise'] = round(corr_exercise, 3)
-                    if abs(corr_exercise) > 0.3:
-                        if corr_exercise < -0.3:
-                            insights.append({
-                                'behavior': 'Exercise Minutes',
-                                'impact': 'Positive',
-                                'correlation': round(corr_exercise, 2),
-                                'insight': f'More exercise correlates with weight loss. Current avg: {exercise_data["exercise_minutes"].mean():.0f} min/day.',
-                                'recommendation': 'Increase exercise frequency to 30-60 minutes daily'
-                            })
-                            root_causes.append('Regular exercise is a key factor in your weight management')
+        # Helper string formats
+        feature_names = {
+            'sleep_hours': 'Sleep duration',
+            'exercise_minutes': 'Exercise frequency',
+            'calories_consumed': 'Calorie intake'
+        }
+
+        # Calculate Pearson correlation for valid pairs
+        def calc_corr(col1, col2):
+            valid_df = df.dropna(subset=[col1, col2])
+            if len(valid_df) >= 3: # Need at least 3 points for a meaningful correlation
+                return valid_df[col1].corr(valid_df[col2])
+            return np.nan
         
-        # Analyze calories correlation
-        if df['calories_consumed'].notna().sum() >= 2:
-            calories_data = df[df['calories_consumed'].notna()]
-            if len(calories_data) > 1:
-                corr_calories = calories_data['calories_consumed'].corr(calories_data['weight_change'])
-                if not np.isnan(corr_calories):
-                    correlations['calories'] = round(corr_calories, 3)
-                    if abs(corr_calories) > 0.3:
-                        if corr_calories > 0.3:
-                            avg_cal = calories_data['calories_consumed'].mean()
-                            insights.append({
-                                'behavior': 'Calories Consumed',
-                                'impact': 'Negative',
-                                'correlation': round(corr_calories, 2),
-                                'insight': f'Higher calorie intake correlates with weight gain. Current avg: {avg_cal:.0f} cal/day.',
-                                'recommendation': f'Monitor and reduce calorie intake to target range'
-                            })
-                            root_causes.append('Calorie intake is a primary driver of weight changes')
+        # Analyze sleep vs weight
+        corr_sleep_weight = calc_corr('sleep_hours', 'weight')
+        if not np.isnan(corr_sleep_weight):
+            correlations['sleep_hours_vs_weight'] = round(corr_sleep_weight, 3)
+            add_insight(feature_names['sleep_hours'], 'sleep', corr_sleep_weight, 'Weight')
         
-        # Analyze consistency
-        if len(df) > 1:
-            consistency = df['weight'].notna().sum() / len(df)
-            if consistency < 0.7:
+        # Analyze exercise vs weight
+        corr_ex_weight = calc_corr('exercise_minutes', 'weight')
+        if not np.isnan(corr_ex_weight):
+            correlations['exercise_minutes_vs_weight'] = round(corr_ex_weight, 3)
+            add_insight(feature_names['exercise_minutes'], 'exercise', corr_ex_weight, 'Weight')
+            
+        # Analyze calories vs weight
+        corr_cal_weight = calc_corr('calories_consumed', 'weight')
+        if not np.isnan(corr_cal_weight):
+            correlations['calories_consumed_vs_weight'] = round(corr_cal_weight, 3)
+            if corr_cal_weight > 0.5:
                 insights.append({
-                    'behavior': 'Data Consistency',
-                    'impact': 'Critical',
-                    'correlation': round(1 - consistency, 2),
-                    'insight': f'Irregular tracking ({consistency*100:.0f}% consistency) makes it hard to identify patterns.',
-                    'recommendation': 'Track your data daily for better insights'
+                    'behavior': 'Calories Consumed',
+                    'impact': 'Negative',
+                    'correlation': round(corr_cal_weight, 2),
+                    'insight': 'Higher calorie intake appears linked to weight gain.',
+                    'recommendation': 'Monitor and reduce calorie intake consistently.'
                 })
-                root_causes.append('Inconsistent tracking prevents accurate pattern identification')
+                root_causes.append('Calorie intake is a primary driver of observed weight changes.')
+            elif corr_cal_weight < -0.5:
+                insights.append({
+                    'behavior': 'Calories Consumed',
+                    'impact': 'Positive',
+                    'correlation': round(corr_cal_weight, 2),
+                    'insight': 'Lower calorie intake appears linked to weight loss.',
+                    'recommendation': 'You are maintaining a healthy deficit.'
+                })
+            else:
+                add_insight(feature_names['calories_consumed'], 'calories', corr_cal_weight, 'Weight')
+                
+        # Analyze exercise vs sleep (secondary insight)
+        corr_ex_sleep = calc_corr('exercise_minutes', 'sleep_hours')
+        if not np.isnan(corr_ex_sleep):
+            correlations['exercise_minutes_vs_sleep'] = round(corr_ex_sleep, 3)
+            if corr_ex_sleep > 0.4:
+                insights.append({
+                    'behavior': 'Exercise & Sleep',
+                    'impact': 'Positive',
+                    'correlation': round(corr_ex_sleep, 2),
+                    'insight': 'Days with more exercise often correspond to longer sleep.',
+                    'recommendation': 'Keep exercising to maintain good sleep hygiene.'
+                })
         
-        # Identify primary root cause
-        if not root_causes:
-            root_causes.append('Continue tracking to identify patterns. More data needed for root cause analysis.')
-        
+        # Identify strongest correlation
+        strongest_factor = None
+        strongest_val = -1
+        for key, val in correlations.items():
+            if abs(val) > strongest_val:
+                strongest_val = abs(val)
+                strongest_factor = key
+                
+        # Fallback if no strong correlations found despite having enough data points
+        if strongest_val <= 0.2 and len(df) >= 3:
+             insights.append({
+                    'behavior': 'General Trends',
+                    'impact': 'Neutral',
+                    'correlation': 0.0,
+                    'insight': 'No strong behavioral correlation detected.',
+                    'recommendation': 'Keep logging your data. Stronger patterns may emerge over a longer period.'
+                })
+             root_causes.append('Current data does not clearly point out a single strongest root cause. Continue monitoring.')
+             
+        # Add primary root cause emphasis (deduplicate)
+        root_causes = list(dict.fromkeys(root_causes))
+        if len(root_causes) == 0:
+            root_causes.append("Gathering more data points will help uncover underlying causes.")
+            
         return {
             'insights': insights,
             'correlations': correlations,
