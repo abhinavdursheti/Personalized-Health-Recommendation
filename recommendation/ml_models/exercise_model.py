@@ -7,6 +7,7 @@ from sklearn.tree import DecisionTreeClassifier
 from sklearn.cluster import KMeans
 import joblib
 import os
+import random
 from django.conf import settings
 
 
@@ -203,21 +204,17 @@ class ExerciseRecommendationModel:
             exercise_category = 'mixed'
         
         available_exercises = exercises.get(fitness_level, exercises['beginner']).get(exercise_category, [])
-        
-        # Select exercises that fit within available time
+
+        # Randomized routine: pick 2–4 distinct exercises and compute total duration dynamically
         selected = []
         total_time = 0
-        for ex in available_exercises:
-            ex_time = ex.get('duration', 15)
-            if total_time + ex_time <= available_time:
-                selected.append(ex)
-                total_time += ex_time
-            if len(selected) >= 5:  # Increased limit to 5 exercises
-                break
-        
-        if not selected and available_exercises:
-            selected = [available_exercises[0]]  # At least one exercise
-        
+        if available_exercises:
+            max_k = min(4, len(available_exercises))
+            min_k = 2 if len(available_exercises) >= 2 else 1
+            k = random.randint(min_k, max_k)
+            selected = random.sample(available_exercises, k)
+            total_time = sum(ex.get('duration', 15) for ex in selected)
+
         return {
             'fitness_level': fitness_level,
             'exercise_type': exercise_category,

@@ -127,12 +127,13 @@ FOOD_DATABASE = {
         'serving_size': 150,
     },
     'Sambar': {
-        'calories_per_100g': 90,
+        # Approx. 100 kcal per serving
+        'calories_per_100g': 100,
         'protein_per_100g': 4,
-        'carbs_per_100g': 15,
-        'fats_per_100g': 2,
-        'fiber_per_100g': 5,
-        'serving_size': 150,
+        'carbs_per_100g': 18,
+        'fats_per_100g': 3,
+        'fiber_per_100g': 4,
+        'serving_size': 100,
     },
     'Rasam': {
         'calories_per_100g': 30,
@@ -169,18 +170,20 @@ FOOD_DATABASE = {
         'serving_size': 100,
     },
     'Tea': {
-        'calories_per_100g': 2,
-        'protein_per_100g': 0,
-        'carbs_per_100g': 0.3,
-        'fats_per_100g': 0,
+        # Approx. 40 kcal per cup
+        'calories_per_100g': 20,
+        'protein_per_100g': 1,
+        'carbs_per_100g': 8,
+        'fats_per_100g': 0.5,
         'fiber_per_100g': 0,
         'serving_size': 200,  # 1 cup
     },
     'Coffee': {
-        'calories_per_100g': 2,
-        'protein_per_100g': 0.1,
-        'carbs_per_100g': 0,
-        'fats_per_100g': 0,
+        # Approx. 30 kcal per cup
+        'calories_per_100g': 15,
+        'protein_per_100g': 1,
+        'carbs_per_100g': 5,
+        'fats_per_100g': 0.5,
         'fiber_per_100g': 0,
         'serving_size': 200,
     },
@@ -266,6 +269,174 @@ FOOD_DATABASE = {
         'fiber_per_100g': 0,
         'serving_size': 200,  # 1 glass
     },
+
+    # Additional Indian breakfast accompaniments
+    'Peanut Chutney': {
+        # ~120 kcal per serving
+        'calories_per_100g': 120,
+        'protein_per_100g': 5,
+        'carbs_per_100g': 6,
+        'fats_per_100g': 9,
+        'fiber_per_100g': 2,
+        'serving_size': 100,
+    },
+    'Tomato Chutney': {
+        # ~80 kcal per serving
+        'calories_per_100g': 80,
+        'protein_per_100g': 2,
+        'carbs_per_100g': 12,
+        'fats_per_100g': 3,
+        'fiber_per_100g': 2,
+        'serving_size': 100,
+    },
+    'Bonda': {
+        # ~180 kcal per piece/serving
+        'calories_per_100g': 180,
+        'protein_per_100g': 5,
+        'carbs_per_100g': 20,
+        'fats_per_100g': 8,
+        'fiber_per_100g': 2,
+        'serving_size': 100,
+    },
+    'Vada': {
+        # ~160 kcal per piece/serving
+        'calories_per_100g': 160,
+        'protein_per_100g': 5,
+        'carbs_per_100g': 18,
+        'fats_per_100g': 6,
+        'fiber_per_100g': 3,
+        'serving_size': 100,
+    },
+
+    # Additional Indian lunch/dinner dishes
+    'Chicken Biryani': {
+        # ~290 kcal per serving
+        'calories_per_100g': 290,
+        'protein_per_100g': 13,
+        'carbs_per_100g': 28,
+        'fats_per_100g': 12,
+        'fiber_per_100g': 2,
+        'serving_size': 100,
+    },
+    'Mutton Biryani': {
+        # ~350 kcal per serving
+        'calories_per_100g': 350,
+        'protein_per_100g': 15,
+        'carbs_per_100g': 30,
+        'fats_per_100g': 16,
+        'fiber_per_100g': 2,
+        'serving_size': 100,
+    },
+    'Mutton Curry': {
+        # ~320 kcal per serving
+        'calories_per_100g': 320,
+        'protein_per_100g': 18,
+        'carbs_per_100g': 6,
+        'fats_per_100g': 24,
+        'fiber_per_100g': 1,
+        'serving_size': 100,
+    },
+    'Tandoori Chicken': {
+        # ~220 kcal per serving
+        'calories_per_100g': 220,
+        'protein_per_100g': 26,
+        'carbs_per_100g': 2,
+        'fats_per_100g': 12,
+        'fiber_per_100g': 0,
+        'serving_size': 100,
+    },
+    'Butter Naan': {
+        # ~260 kcal per naan
+        'calories_per_100g': 260,
+        'protein_per_100g': 8,
+        'carbs_per_100g': 40,
+        'fats_per_100g': 8,
+        'fiber_per_100g': 2,
+        'serving_size': 100,
+    },
+    'Brinjal Curry': {
+        # ~150 kcal per serving
+        'calories_per_100g': 150,
+        'protein_per_100g': 4,
+        'carbs_per_100g': 12,
+        'fats_per_100g': 9,
+        'fiber_per_100g': 4,
+        'serving_size': 100,
+    },
+    'Egg Curry': {
+        # ~200 kcal per serving
+        'calories_per_100g': 200,
+        'protein_per_100g': 12,
+        'carbs_per_100g': 6,
+        'fats_per_100g': 14,
+        'fiber_per_100g': 0,
+        'serving_size': 100,
+    },
+    'Egg Fried Rice': {
+        # ~250 kcal per serving
+        'calories_per_100g': 250,
+        'protein_per_100g': 7,
+        'carbs_per_100g': 32,
+        'fats_per_100g': 9,
+        'fiber_per_100g': 1,
+        'serving_size': 100,
+    },
+
+    # Additional snacks
+    'Maggi': {
+        # ~310 kcal per packet/serving
+        'calories_per_100g': 310,
+        'protein_per_100g': 7,
+        'carbs_per_100g': 45,
+        'fats_per_100g': 11,
+        'fiber_per_100g': 2,
+        'serving_size': 100,
+    },
+    'Bread Omelette': {
+        # ~250 kcal per serving
+        'calories_per_100g': 250,
+        'protein_per_100g': 12,
+        'carbs_per_100g': 20,
+        'fats_per_100g': 13,
+        'fiber_per_100g': 2,
+        'serving_size': 100,
+    },
+    'French Fries': {
+        # ~365 kcal per serving
+        'calories_per_100g': 365,
+        'protein_per_100g': 4,
+        'carbs_per_100g': 40,
+        'fats_per_100g': 17,
+        'fiber_per_100g': 3,
+        'serving_size': 100,
+    },
+    'Momos': {
+        # ~180 kcal per serving
+        'calories_per_100g': 180,
+        'protein_per_100g': 7,
+        'carbs_per_100g': 24,
+        'fats_per_100g': 6,
+        'fiber_per_100g': 1,
+        'serving_size': 100,
+    },
+    'Chaat': {
+        # ~220 kcal per serving
+        'calories_per_100g': 220,
+        'protein_per_100g': 6,
+        'carbs_per_100g': 28,
+        'fats_per_100g': 9,
+        'fiber_per_100g': 4,
+        'serving_size': 100,
+    },
+    'Samosa': {
+        # ~260 kcal per piece/serving
+        'calories_per_100g': 260,
+        'protein_per_100g': 5,
+        'carbs_per_100g': 28,
+        'fats_per_100g': 13,
+        'fiber_per_100g': 3,
+        'serving_size': 100,
+    },
 }
 
 
@@ -305,10 +476,30 @@ def calculate_nutrition(food_name, quantity, unit='serving'):
 def get_food_suggestions(meal_type, dietary_preference='none'):
     """Get food suggestions based on meal type and dietary preference"""
     suggestions = {
-        'breakfast': ['Poha (Flattened Rice)', 'Upma (Semolina)', 'Idli', 'Dosa', 'Paratha', 'Aloo Paratha', 'Besan Chilla', 'Moong Dal Cheela', 'Oatmeal', 'Eggs (Scrambled)', 'Bread (White)'],
-        'lunch': ['Rice (Cooked)', 'Roti/Chapati', 'Dal (Lentils)', 'Vegetable Curry', 'Chicken Curry', 'Fish Curry', 'Paneer Curry', 'Sambar', 'Rasam', 'Salad', 'Quinoa (Cooked)'],
-        'dinner': ['Rice (Cooked)', 'Roti/Chapati', 'Dal (Lentils)', 'Vegetable Curry', 'Chicken Curry', 'Fish Curry', 'Paneer Curry', 'Chicken Breast (Grilled)', 'Salmon (Grilled)', 'Quinoa (Cooked)'],
-        'snacks': ['Fruits (Mixed)', 'Nuts (Mixed)', 'Yogurt/Curd', 'Banana', 'Apple', 'Tea', 'Coffee'],
+        'breakfast': [
+            'Poha (Flattened Rice)', 'Upma (Semolina)', 'Idli', 'Dosa', 'Paratha', 'Aloo Paratha',
+            'Besan Chilla', 'Moong Dal Cheela', 'Oatmeal', 'Eggs (Scrambled)', 'Bread (White)',
+            'Peanut Chutney', 'Tomato Chutney', 'Sambar', 'Bonda', 'Vada',
+        ],
+        'lunch': [
+            'Rice (Cooked)', 'Roti/Chapati', 'Dal (Lentils)', 'Vegetable Curry',
+            'Chicken Curry', 'Fish Curry', 'Paneer Curry', 'Sambar', 'Rasam',
+            'Salad', 'Quinoa (Cooked)',
+            'Chicken Biryani', 'Mutton Biryani', 'Mutton Curry', 'Tandoori Chicken',
+            'Butter Naan', 'Brinjal Curry', 'Egg Curry', 'Egg Fried Rice',
+        ],
+        'dinner': [
+            'Rice (Cooked)', 'Roti/Chapati', 'Dal (Lentils)', 'Vegetable Curry',
+            'Chicken Curry', 'Fish Curry', 'Paneer Curry', 'Chicken Breast (Grilled)',
+            'Salmon (Grilled)', 'Quinoa (Cooked)',
+            'Chicken Biryani', 'Mutton Biryani', 'Mutton Curry', 'Tandoori Chicken',
+            'Butter Naan', 'Brinjal Curry', 'Egg Curry', 'Egg Fried Rice',
+        ],
+        'snacks': [
+            'Fruits (Mixed)', 'Nuts (Mixed)', 'Yogurt/Curd', 'Banana', 'Apple',
+            'Tea', 'Coffee', 'Maggi', 'Bread Omelette', 'French Fries',
+            'Momos', 'Chaat', 'Samosa',
+        ],
     }
     
     foods = suggestions.get(meal_type, [])

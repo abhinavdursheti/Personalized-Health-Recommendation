@@ -173,44 +173,188 @@ def generate_sleep_recommendation(user_profile, exercise_minutes=0):
 
 
 def generate_recovery_stability_analysis(user_profile, health_data_list):
-    """Generate recovery and stability analysis"""
-    model = RecoveryStabilityModel()
-    
-    # Calculate metrics
-    metrics = model.calculate_metrics(health_data_list)
-    
-    # Predict recovery time
-    recovery_days = model.predict_recovery_time(
-        metrics['consistency_score'],
-        metrics['adherence_rate'],
-        metrics['days_active'],
-        user_profile.age,
-        user_profile.activity_level,
-        user_profile.health_goal
-    )
-    
-    # Predict stability
-    stability = model.predict_stability(
-        metrics['consistency_score'],
-        metrics['adherence_rate'],
-        metrics['days_active'],
-        user_profile.age,
-        user_profile.activity_level,
-        user_profile.health_goal
-    )
-    
-    # Get recommendations
-    recommendations = model.get_recovery_recommendations(recovery_days, stability['stability_score'])
-    
+    """
+    Generate recovery and stability analysis from recent health data (last 7–14 days).
+    Uses sleep, exercise, calories and logging behavior to derive:
+    - recovery_days (1–14)
+    - stability_score (0–100)
+    - consistency_score (0–100)
+    - streak_days (current logging streak)
+    - risk_level (Low / Medium / High)
+    - recommendations (behavior-based)
+    """
+    from datetime import timedelta
+
+    if not health_data_list:
+        return {
+            'recovery_days': 5,
+            'stability_score': 0,
+            'is_stable': False,
+            'risk_level': 'High',
+            'consistency_score': 0,
+            'adherence_rate': 0,
+            'streak_days': 0,
+            'missed_days': 0,
+            'recommendations': [
+                "Start logging your sleep, activity, and meals for at least a week.",
+                "Short daily walks and a consistent bedtime will immediately improve recovery."
+            ],
+            'metrics': {},
+        }
+
+    # Sort by date and focus on a recent 14‑day window (or fewer if limited data)
+    data = sorted(health_data_list, key=lambda d: d.date)
+    end_date = data[-1].date
+    window_start = end_date - timedelta(days=13)
+    window = [d for d in data if d.date >= window_start] or data[-min(7, len(data)):]
+
+    # Helper series
+    def _avg(values):
+        return statistics.mean(values) if values else 0.0
+
+    sleep_values = [d.sleep_hours for d in window if d.sleep_hours is not None]
+    exercise_values = [d.exercise_minutes for d in window if d.exercise_minutes is not None]
+    calorie_values = [
+        (d.calories_consumed if d.calories_consumed is not None else d.total_calories)
+        for d in window
+        if (d.calories_consumed is not None) or d.total_calories
+    ]
+    weight_values = [d.weight for d in window if d.weight is not None]
+
+    avg_sleep = _avg(sleep_values)
+    avg_exercise = _avg(exercise_values)
+    avg_calories = _avg(calorie_values)
+
+    # --- Recovery days: better sleep + balanced calories => faster recovery; very high training load slows it ---
+    # Sleep factor (0.4–1.0)
+    if avg_sleep <= 0:
+        sleep_factor = 0.6
+    elif 7 <= avg_sleep <= 8:
+        sleep_factor = 1.0
+    elif 6 <= avg_sleep < 7 or 8 < avg_sleep <= 9:
+        sleep_factor = 0.85
+    elif 5 <= avg_sleep < 6 or 9 < avg_sleep <= 10:
+        sleep_factor = 0.7
+    else:
+        sleep_factor = 0.5
+
+    # Calorie balance factor (0.4–1.0) relative to TDEE
+    tdee = getattr(user_profile, 'tdee', None)
+    if tdee and avg_calories:
+        ratio = avg_calories / tdee
+        if 0.9 <= ratio <= 1.1:
+            cal_factor = 1.0
+        elif 0.8 <= ratio <= 1.2:
+            cal_factor = 0.85
+        elif 0.7 <= ratio <= 1.3:
+            cal_factor = 0.7
+        else:
+            cal_factor = 0.5
+    else:
+        cal_factor = 0.7
+
+    # Training load / fatigue factor (0.7–1.4) from average daily exercise minutes
+    if avg_exercise <= 20:
+        fatigue_factor = 0.8
+    elif avg_exercise <= 40:
+        fatigue_factor = 1.0
+    elif avg_exercise <= 60:
+        fatigue_factor = 1.2
+    else:
+        fatigue_factor = 1.4
+
+    base_recovery = 5.0
+    denominator = max(0.4, sleep_factor * 0.6 + cal_factor * 0.4)
+    raw_recovery_days = base_recovery * fatigue_factor / denominator
+    recovery_days = max(1.0, min(14.0, round(raw_recovery_days, 1)))
+
+    # --- Stability & consistency metrics reused from helpers (0–100) ---
+    consistency_result = calculate_consistency_score(window)
+    consistency_score = consistency_result['score']
+    details = consistency_result.get('details', {})
+    missed_days = details.get('missed_days', 0)
+    total_span_days = details.get('total_span_days', len({d.date for d in window}))
+    adherence_rate = 0.0
+    if total_span_days:
+        adherence_rate = round((total_span_days - missed_days) / total_span_days, 2)
+
+    stability_index = compute_stability_index(window)
+    stability_score = stability_index.get('score')
+    if stability_score is None:
+        stability_score = 50  # neutral when not enough variation data
+    stability_score = round(stability_score, 1)
+
+    # --- Current logging streak (consecutive calendar days with any entry) ---
+    unique_dates = sorted({d.date for d in window}, reverse=True)
+    streak_days = 0
+    if unique_dates:
+        streak_days = 1
+        prev = unique_dates[0]
+        for dt in unique_dates[1:]:
+            if (prev - dt).days == 1:
+                streak_days += 1
+                prev = dt
+            else:
+                break
+
+    # --- Risk level from stability score as requested ---
+    if stability_score > 80:
+        risk_level = 'Low'
+    elif 50 <= stability_score <= 80:
+        risk_level = 'Medium'
+    else:
+        risk_level = 'High'
+
+    is_stable = stability_score >= 50
+
+    # --- Behavior-based recommendations ---
+    recommendations = []
+
+    if avg_sleep and avg_sleep < 6:
+        recommendations.append("Improve sleep duration for better recovery (aim for 7–8 hours).")
+    elif avg_sleep and avg_sleep > 9:
+        recommendations.append("Your sleep duration is quite high; focus on consistent 7–8 hours for optimal recovery.")
+
+    if avg_exercise < 20:
+        recommendations.append("Increase physical activity for improved health (target at least 20–30 minutes most days).")
+    elif avg_exercise > 60:
+        recommendations.append("Your training load is high; schedule deliberate rest or light days to avoid overtraining.")
+
+    if tdee and avg_calories:
+        cal_ratio = avg_calories / tdee
+        if cal_ratio < 0.8:
+            recommendations.append("Your calorie deficit is high; maintain a more balanced intake to support recovery.")
+        elif cal_ratio > 1.2:
+            recommendations.append("Your calorie intake is above your needs; reduce surplus to avoid long‑term weight gain.")
+
+    if consistency_score < 50:
+        recommendations.append("Work on logging most days each week to build consistent habits.")
+    elif consistency_score < 75:
+        recommendations.append("Your consistency is moderate; try to reduce missed days to stabilize recovery.")
+
+    if stability_score < 50:
+        recommendations.append("Large swings in sleep, weight, or calories reduce stability; aim for smaller day‑to‑day changes.")
+
+    if not recommendations:
+        recommendations.append("Your recovery and stability look solid. Maintain your current routine and track progress.")
+
+    metrics = {
+        'window_days': total_span_days,
+        'avg_sleep': round(avg_sleep, 1) if avg_sleep else None,
+        'avg_exercise_minutes': round(avg_exercise, 1) if avg_exercise else None,
+        'avg_calories': round(avg_calories, 0) if avg_calories else None,
+        'has_weight_data': bool(weight_values),
+    }
+
     return {
         'recovery_days': recovery_days,
-        'stability_score': stability['stability_score'],
-        'is_stable': stability['is_stable'],
-        'risk_level': stability['risk_level'],
-        'consistency_score': metrics['consistency_score'],
-        'adherence_rate': metrics['adherence_rate'],
-        'streak_days': metrics['streak_days'],
-        'missed_days': metrics['missed_days'],
+        'stability_score': stability_score,
+        'is_stable': is_stable,
+        'risk_level': risk_level,
+        'consistency_score': round(consistency_score, 1),
+        'adherence_rate': adherence_rate,
+        'streak_days': streak_days,
+        'missed_days': missed_days,
         'recommendations': recommendations,
         'metrics': metrics,
     }

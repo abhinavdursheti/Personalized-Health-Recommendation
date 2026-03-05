@@ -230,40 +230,6 @@
     </div>
 </div>
 
-<!-- Shortcuts -->
-<div class="row mb-4">
-    <div class="col-md-3">
-        <a class="card text-decoration-none" href="{% url 'dashboard_activity' %}">
-            <div class="card-body">
-                <h6 class="card-title"><i class="bi bi-activity text-primary"></i> Activity & Sleep</h6>
-                <p class="text-muted small mb-0">Log weight, sleep, exercise and see trends.</p>
-            </div>
-        </a>
-    </div>
-    <div class="col-md-3">
-        <a class="card text-decoration-none" href="{% url 'dashboard_nutrition' %}">
-            <div class="card-body">
-                <h6 class="card-title"><i class="bi bi-egg-fried text-warning"></i> Nutrition</h6>
-                <p class="text-muted small mb-0">Track meals, macros, and daily calories.</p>
-            </div>
-        </a>
-    </div>
-    <div class="col-md-3">
-        <a class="card text-decoration-none" href="{% url 'dashboard_alerts' %}">
-            <div class="card-body">
-                <h6 class="card-title"><i class="bi bi-exclamation-triangle text-danger"></i> Alerts</h6>
-                <p class="text-muted small mb-0">View risks, predictions, and reminders.</p>
-            </div>
-        </a>
-    </div>
-    <div class="col-md-3">
-        <a class="card text-decoration-none" href="{% url 'dashboard_insights' %}">
-            <div class="card-body">
-                <h6 class="card-title"><i class="bi bi-lightbulb text-info"></i> Insights</h6>
-                <p class="text-muted small mb-0">Consistency, drift, and effort-to-impact.</p>
-            </div>
-        </a>
-    </div>
-</div>
+{# Removed duplicate navigation shortcut cards to reduce clutter; navigation remains in top navbar. #}
 {% endblock %}
 
