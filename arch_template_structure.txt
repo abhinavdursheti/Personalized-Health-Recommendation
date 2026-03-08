@@ -1,0 +1,5 @@
+--- PARAGRAPHS ---
+[Normal] Architecture Document
+[Normal (Web)] (The student team can select one of the following architectures for their project and they should provide a detailed explanation: Microservices, Event-Driven Architecture, Serverless, or Monolithic architectures. Additionally, they should create relevant diagrams, such as use case, class, DFD, component, sequence, and deployment diagrams, to support their project.)
+
+--- TABLES ---

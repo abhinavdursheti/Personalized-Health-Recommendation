@@ -86,6 +86,16 @@ class HealthData(models.Model):
     weight = models.FloatField(validators=[MinValueValidator(20), MaxValueValidator(300)])
     sleep_hours = models.FloatField(validators=[MinValueValidator(0), MaxValueValidator(24)], null=True, blank=True)
     exercise_minutes = models.IntegerField(validators=[MinValueValidator(0)], null=True, blank=True)
+    stress_level = models.IntegerField(
+        validators=[MinValueValidator(1), MaxValueValidator(10)],
+        null=True, blank=True,
+        help_text="Stress level (1-10)"
+    )
+    daily_steps = models.IntegerField(
+        validators=[MinValueValidator(0)],
+        null=True, blank=True,
+        help_text="Number of daily steps"
+    )
     calories_consumed = models.FloatField(validators=[MinValueValidator(0)], null=True, blank=True)
     water_intake_liters = models.FloatField(validators=[MinValueValidator(0), MaxValueValidator(10)], null=True, blank=True, help_text="Water intake in liters")
     notes = models.TextField(blank=True)

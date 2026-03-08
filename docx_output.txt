@@ -1,0 +1,114 @@
+P: Functional Document
+P: 
+P: 
+P: Introduction
+P: Product Goal 
+P: Demography (Users, Location)
+P: Business Processes 
+P: Features 
+P: Feature #1 
+P: Description 
+P: User Story
+P: Authorization Matrix 
+P: Assumptions 
+P: 
+P: 
+P: 
+P: 
+P: 
+P: Example 1  -  Online Learning Platform - project
+P: 
+P: 1. Introduction
+P: The Online Learning Platform project aims to revolutionize remote education by enhancing user experience and introducing new features. Sprint 1 is focused on implementing critical improvements to the user authentication system and optimizing the course search functionality.
+P: 2. Product Goal
+P: The primary goal of this sprint is to enhance the security of user accounts and streamline the process of discovering relevant courses, contributing to the overarching objective of providing a seamless online learning experience.
+P: 3. Demography (Users, Location)
+P: Users
+P: Target Users: Students, educators, and administrators
+P: User Characteristics: Diverse age groups, varying technical proficiency
+P: Location
+P: Target Location: Worldwide
+P: 4. Business Processes
+P: The key business processes include:
+P: User Registration and Authentication:
+P: Process for users to register securely and authenticate their accounts.
+P: Course Discovery:
+P: Process for users to search, filter, and enroll in courses.
+P: Content Management:
+P: Process for educators to create and manage course content.
+P: 5. Features
+P: This sprint will focus on implementing the following key features:
+P: Enhanced User Authentication:
+P: Enable two-factor authentication for added security.
+P: Implement account recovery options.
+P: Course Search Optimization:
+P: Introduce category filters for courses.
+P: Improve sorting options based on relevance and popularity.
+P: 
+P: 6. Authorization Matrix
+P: Define the roles and their corresponding access levels:
+P: 
+P: 7. Assumptions
+P: The development environment and infrastructure will remain stable throughout the sprint.
+P: Stakeholders, including administrators and educators, will be available for feedback and clarification.
+P: Team members possess the necessary skills and resources to complete the assigned tasks.
+P: 
+P: 
+P: 
+P: 
+P: 
+P: 
+P: Sprint Functional Document for Health and Fitness app
+P: 1. Introduction
+P: The Health and Fitness App project focuses on enhancing the user experience by introducing personalized workout plans and nutrition tracking. Sprint 2 (example) aims to implement advanced features such as real-time workout tracking and integration with wearable devices.
+P: 2. Product Goal
+P: The primary goal of this sprint is to elevate the health and fitness app's functionality by incorporating real-time workout tracking capabilities and seamless integration with popular wearable devices. This aligns with the overarching project objective of providing users with a comprehensive and personalized fitness experience.
+P: 3. Demography (Users, Location)
+P: Users
+P: Target Users: Fitness enthusiasts, casual users, and nutrition-conscious individuals
+P: User Characteristics: Diverse fitness goals, various fitness levels
+P: Location
+P: Target Location: Global usage with a focus on health-conscious communities
+P: 4. Business Processes
+P: Key business processes include:
+P: User Onboarding:
+P: Process for users to create profiles and set fitness goals.
+P: Workout Planning:
+P: Process for users to receive personalized workout plans.
+P: Nutrition Tracking:
+P: Process for users to log and track their daily nutrition intake.
+P: 5. Features
+P: This sprint will focus on implementing the following key features:
+P: Real-time Workout Tracking:
+P: Integrate sensors for real-time tracking of exercises.
+P: Provide instant feedback on form and performance.
+P: Wearable Device Integration:
+P: Enable seamless synchronization with popular wearable devices.
+P: Utilize device data for more accurate fitness insights.
+P: 6. Authorization Matrix
+P: Define the roles and their corresponding access levels:
+P: 
+P: 
+P: 7. Assumptions
+P: The development environment and infrastructure will remain stable during the sprint.
+P: Users are open to sharing data with wearable devices for an enhanced fitness experience.
+P: Team members possess the necessary skills and resources to complete the assigned tasks.
+P: 
+P: 
+P: 
+P: 
+--- TABLES ---
+Table 0:
+['Role', 'Access Level']
+['Administrator', 'Full access to user and course management']
+['Educator', 'Access to content creation and management tools']
+['Student', 'Access to course enrolment and personal settings']
+['Guest User', 'Limited access to browse courses and view public content']
+----------------------------------------
+Table 1:
+['Role', 'Access Level']
+['Standard User', 'Access to personalized fitness plans and tracking features']
+['Premium User', 'Additional access to advanced tracking and integration features']
+['Coach', 'Access to user progress data for coaching purposes']
+['Admin', 'Full access to user management and app settings']
+----------------------------------------

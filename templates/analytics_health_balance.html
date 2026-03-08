@@ -23,43 +23,40 @@
         <div class="card shadow">
             <div class="card-body">
                 {% if not has_sufficient_data %}
-                    <div class="alert alert-info mb-0">
-                        <i class="bi bi-info-circle"></i>
-                        Add more health entries to see your health balance radar.
-                    </div>
+                <div class="alert alert-info mb-0">
+                    <i class="bi bi-info-circle"></i>
+                    Add more health entries to see your health balance radar.
+                </div>
                 {% else %}
-                    <div class="row">
-                        <div class="col-md-8">
-                            <canvas id="healthBalanceRadar" height="220"></canvas>
-                        </div>
-                        <div class="col-md-4">
-                            <h5 class="mb-3"><i class="bi bi-lightbulb"></i> Interpretation</h5>
-                            <p class="text-muted small">
-                                A near-circle shape means your habits are well balanced.
-                                A distorted shape with one side collapsed reveals your weakest dimension.
-                            </p>
-                            <ul class="list-group list-group-flush small">
-                                <li class="list-group-item d-flex justify-content-between">
-                                    <span>Sleep</span><span class="fw-bold">{{ balance.sleep }}</span>
-                                </li>
-                                <li class="list-group-item d-flex justify-content-between">
-                                    <span>Exercise</span><span class="fw-bold">{{ balance.exercise }}</span>
-                                </li>
-                                <li class="list-group-item d-flex justify-content-between">
-                                    <span>Nutrition</span><span class="fw-bold">{{ balance.nutrition }}</span>
-                                </li>
-                                <li class="list-group-item d-flex justify-content-between">
-                                    <span>Recovery</span><span class="fw-bold">{{ balance.recovery }}</span>
-                                </li>
-                                <li class="list-group-item d-flex justify-content-between">
-                                    <span>Stability</span><span class="fw-bold">{{ balance.stability }}</span>
-                                </li>
-                                <li class="list-group-item d-flex justify-content-between">
-                                    <span>Metabolic</span><span class="fw-bold">{{ balance.metabolic }}</span>
-                                </li>
-                            </ul>
-                        </div>
+                <div class="row">
+                    <div class="col-md-8">
+                        <canvas id="healthBalanceRadar" height="220"></canvas>
                     </div>
+                    <div class="col-md-4">
+                        <h5 class="mb-3"><i class="bi bi-lightbulb"></i> Interpretation</h5>
+                        <p class="text-muted small">
+                            A near-circle shape means your habits are well balanced.
+                            A distorted shape with one side collapsed reveals your weakest dimension.
+                        </p>
+                        <ul class="list-group list-group-flush small">
+                            <li class="list-group-item d-flex justify-content-between">
+                                <span>Sleep</span><span class="fw-bold">{{ balance.sleep }}</span>
+                            </li>
+                            <li class="list-group-item d-flex justify-content-between">
+                                <span>Exercise</span><span class="fw-bold">{{ balance.exercise }}</span>
+                            </li>
+                            <li class="list-group-item d-flex justify-content-between">
+                                <span>Calories</span><span class="fw-bold">{{ balance.calories }}</span>
+                            </li>
+                            <li class="list-group-item d-flex justify-content-between">
+                                <span>Stress</span><span class="fw-bold">{{ balance.stress }}</span>
+                            </li>
+                            <li class="list-group-item d-flex justify-content-between">
+                                <span>Hydration</span><span class="fw-bold">{{ balance.hydration }}</span>
+                            </li>
+                        </ul>
+                    </div>
+                </div>
                 {% endif %}
             </div>
         </div>
@@ -70,45 +67,44 @@
 {% block extra_js %}
 {% if has_sufficient_data %}
 <script>
-(function() {
-    const ctx = document.getElementById('healthBalanceRadar');
-    if (!ctx) return;
-    const labels = JSON.parse('{{ radar_labels|escapejs }}');
-    const values = JSON.parse('{{ radar_values|escapejs }}');
+    (function () {
+        const ctx = document.getElementById('healthBalanceRadar');
+        if (!ctx) return;
+        const labels = JSON.parse('{{ radar_labels|escapejs }}');
+        const values = JSON.parse('{{ radar_values|escapejs }}');
 
-    new Chart(ctx, {
-        type: 'radar',
-        data: {
-            labels: labels,
-            datasets: [{
-                label: 'Health Balance',
-                data: values,
-                backgroundColor: 'rgba(99, 102, 241, 0.2)',
-                borderColor: 'rgba(99, 102, 241, 0.9)',
-                borderWidth: 2,
-                pointBackgroundColor: '#6366f1',
-                pointBorderColor: '#ffffff',
-                pointRadius: 4,
-            }]
-        },
-        options: {
-            responsive: true,
-            scales: {
-                r: {
-                    suggestedMin: 0,
-                    suggestedMax: 100,
-                    ticks: { stepSize: 20 }
-                }
+        new Chart(ctx, {
+            type: 'radar',
+            data: {
+                labels: labels,
+                datasets: [{
+                    label: 'Health Balance',
+                    data: values,
+                    backgroundColor: 'rgba(99, 102, 241, 0.2)',
+                    borderColor: 'rgba(99, 102, 241, 0.9)',
+                    borderWidth: 2,
+                    pointBackgroundColor: '#6366f1',
+                    pointBorderColor: '#ffffff',
+                    pointRadius: 4,
+                }]
             },
-            plugins: {
-                legend: {
-                    display: false
+            options: {
+                responsive: true,
+                scales: {
+                    r: {
+                        suggestedMin: 0,
+                        suggestedMax: 100,
+                        ticks: { stepSize: 20 }
+                    }
+                },
+                plugins: {
+                    legend: {
+                        display: false
+                    }
                 }
             }
-        }
-    });
-})();
+        });
+    })();
 </script>
 {% endif %}
 {% endblock %}
-

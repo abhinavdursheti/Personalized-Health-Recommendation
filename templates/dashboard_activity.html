@@ -1,13 +1,13 @@
 {% extends 'base.html' %}
 
-{% block title %}Dashboard - Activity & Sleep{% endblock %}
+{% block title %}Dashboard - Activity &amp; Sleep{% endblock %}
 
 {% block content %}
 <div class="row mb-4 mt-2">
     <div class="col-md-12 d-flex justify-content-between align-items-center">
         <div>
             <h2 class="text-white mb-1"><i class="bi bi-activity"></i> Welcome, {{ user.username }}!</h2>
-            <p class="text-light mb-0">Activity & sleep · Log daily metrics and monitor recent trends.</p>
+            <p class="text-light mb-0">Activity &amp; sleep · Log daily metrics and monitor recent trends.</p>
         </div>
         <a class="btn btn-outline-light btn-sm" href="{% url 'dashboard_overview' %}">Back to Overview</a>
     </div>
@@ -37,9 +37,22 @@
                             <input type="number" class="form-control" name="exercise_minutes" min="0">
                         </div>
                     </div>
+                    <div class="row">
+                        <div class="col-md-6 mb-3">
+                            <label class="form-label">Stress Level (1-10)</label>
+                            <input type="number" class="form-control" name="stress_level" min="1" max="10"
+                                placeholder="1 = Low, 10 = High">
+                        </div>
+                        <div class="col-md-6 mb-3">
+                            <label class="form-label">Daily Steps</label>
+                            <input type="number" class="form-control" name="daily_steps" min="0"
+                                placeholder="e.g., 7000">
+                        </div>
+                    </div>
                     <div class="mb-3">
                         <label class="form-label">Water Intake (liters)</label>
-                        <input type="number" class="form-control" name="water_intake_liters" step="0.1" min="0" max="10" placeholder="e.g., 2.5">
+                        <input type="number" class="form-control" name="water_intake_liters" step="0.1" min="0" max="10"
+                            placeholder="e.g., 2.5">
                         <small class="text-muted">Recommended: 2-3 liters per day</small>
                     </div>
                     <div class="mb-3">
@@ -75,6 +88,8 @@
                                 <th>Weight (kg)</th>
                                 <th>Sleep (hrs)</th>
                                 <th>Exercise (min)</th>
+                                <th>Stress</th>
+                                <th>Steps</th>
                                 <th>Water (L)</th>
                                 <th>Calories</th>
                                 <th>Actions</th>
@@ -87,6 +102,8 @@
                                 <td>{{ data.weight }}</td>
                                 <td>{{ data.sleep_hours|default:"-" }}</td>
                                 <td>{{ data.exercise_minutes|default:"-" }}</td>
+                                <td>{{ data.stress_level|default:"-" }}</td>
+                                <td>{{ data.daily_steps|default:"-" }}</td>
                                 <td>{{ data.water_intake_liters|default:"-"|floatformat:1 }}</td>
                                 <td>{{ data.total_calories|default:"-"|floatformat:0 }}</td>
                                 <td>
@@ -100,7 +117,7 @@
                     </table>
                 </div>
                 {% else %}
-                    <p class="text-muted">No health data recorded yet. Add your first entry.</p>
+                <p class="text-muted">No health data recorded yet. Add your first entry.</p>
                 {% endif %}
             </div>
         </div>
@@ -121,111 +138,120 @@
         </div>
     </div>
 </div>
+<!-- Export chart data safely as JSON -->
+{{ progress_data.weight_trend|json_script:"weight-data" }}
+{{ progress_data.sleep_trend|json_script:"sleep-data" }}
 {% endif %}
 {% endblock %}
 
 {% block extra_js %}
 <script>
-    // Health Data Form Submission
-    const healthForm = document.getElementById('healthDataForm');
-    if (healthForm) {
-        healthForm.addEventListener('submit', async function(e) {
+    // === Form Submission (AJAX POST) ===
+    (function () {
+        var form = document.getElementById('healthDataForm');
+        if (!form) return;
+        form.addEventListener('submit', function (e) {
             e.preventDefault();
-            const formData = new FormData(this);
-            try {
-                const response = await fetch('{% url "add_health_data" %}', {
-                    method: 'POST',
-                    body: formData,
-                    headers: {'X-CSRFToken': formData.get('csrfmiddlewaretoken')}
-                });
-                const data = await response.json();
-                if (data.success) {
-                    alert('Health data saved successfully!');
-                    this.reset();
-                    location.reload();
+            var fd = new FormData(form);
+            var xhr = new XMLHttpRequest();
+            xhr.open('POST', '{% url "add_health_data" %}', true);
+            xhr.setRequestHeader('X-CSRFToken', fd.get('csrfmiddlewaretoken'));
+            xhr.onload = function () {
+                if (xhr.status === 200) {
+                    try {
+                        var resp = JSON.parse(xhr.responseText);
+                        if (resp.success) {
+                            alert('Health data saved successfully!');
+                            form.reset();
+                            window.location.reload();
+                        } else {
+                            alert('Error: ' + (resp.error || 'Unknown error'));
+                        }
+                    } catch (pe) {
+                        alert('Error parsing response');
+                    }
                 } else {
-                    alert('Error: ' + data.error);
+                    alert('Server error: ' + xhr.status);
                 }
-            } catch {
-                alert('Error saving data');
-            }
+            };
+            xhr.onerror = function () {
+                alert('Network error saving data');
+            };
+            xhr.send(fd);
         });
+    })();
+
+    // === Delete Health Data ===
+    function deleteHealthData(dataId) {
+        if (!confirm('Delete this health data entry?')) return;
+        var xhr = new XMLHttpRequest();
+        var url = '{% url "delete_health_data" 0 %}'.replace('0', dataId);
+        xhr.open('POST', url, true);
+        xhr.setRequestHeader('X-CSRFToken', '{{ csrf_token }}');
+        xhr.setRequestHeader('Content-Type', 'application/json');
+        xhr.onload = function () {
+            if (xhr.status === 200) {
+                try {
+                    var resp = JSON.parse(xhr.responseText);
+                    if (resp.success) {
+                        var row = document.getElementById('data-row-' + dataId);
+                        if (row) row.remove();
+                        window.location.reload();
+                    } else {
+                        alert('Error: ' + (resp.error || 'Unknown error'));
+                    }
+                } catch (pe) {
+                    alert('Error parsing response');
+                }
+            } else {
+                alert('Server error: ' + xhr.status);
+            }
+        };
+        xhr.onerror = function () {
+            alert('Network error deleting data');
+        };
+        xhr.send();
     }
 
-    // Delete Health Data
-    async function deleteHealthData(dataId) {
-        if (!confirm('Delete this health data entry?')) return;
-        try {
-            const response = await fetch(`{% url "delete_health_data" 0 %}`.replace('0', dataId), {
-                method: 'POST',
-                headers: {
-                    'X-CSRFToken': '{{ csrf_token }}',
-                    'Content-Type': 'application/json'
+    // === Progress Chart ===
+    try {
+        var chartEl = document.getElementById('progressChart');
+        var wDataEl = document.getElementById('weight-data');
+        var sDataEl = document.getElementById('sleep-data');
+        if (chartEl && wDataEl) {
+            var wData = JSON.parse(wDataEl.textContent);
+            var sData = sDataEl ? JSON.parse(sDataEl.textContent) : [];
+            new Chart(chartEl, {
+                type: 'line',
+                data: {
+                    labels: wData.map(function (d) { return new Date(d.date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }); }),
+                    datasets: [
+                        {
+                            label: 'Weight (kg)',
+                            data: wData.map(function (d) { return d.weight; }),
+                            borderColor: 'rgb(99, 102, 241)',
+                            backgroundColor: 'rgba(99, 102, 241, 0.1)',
+                            borderWidth: 3, pointRadius: 5, tension: 0.4, fill: true
+                        },
+                        (sData.length > 0 ? {
+                            label: 'Sleep (hours)',
+                            data: sData.map(function (d) { return d.hours; }),
+                            borderColor: 'rgb(59, 130, 246)',
+                            backgroundColor: 'rgba(59, 130, 246, 0.1)',
+                            borderWidth: 3, pointRadius: 5, tension: 0.4, fill: true, yAxisID: 'y1'
+                        } : null)
+                    ].filter(Boolean)
+                },
+                options: {
+                    responsive: true,
+                    interaction: { intersect: false, mode: 'index' },
+                    scales: {
+                        y: { title: { display: true, text: 'Weight (kg)' } },
+                        y1: (sData.length > 0 ? { position: 'right', title: { display: true, text: 'Sleep (hrs)' }, grid: { drawOnChartArea: false } } : { display: false })
+                    }
                 }
             });
-            const data = await response.json();
-            if (data.success) {
-                document.getElementById(`data-row-${dataId}`)?.remove();
-                location.reload();
-            } else {
-                alert('Error: ' + data.error);
-            }
-        } catch {
-            alert('Error deleting data');
         }
-    }
-
-    // Progress Chart
-    {% if progress_data.weight_trend %}
-    const ctx = document.getElementById('progressChart');
-    if (ctx) {
-        const weightData = {{ progress_data.weight_trend|safe }};
-        const sleepData = {{ progress_data.sleep_trend|safe }};
-        
-        new Chart(ctx, {
-            type: 'line',
-            data: {
-                labels: weightData.map(d => {
-                    const date = new Date(d.date);
-                    return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
-                }),
-                datasets: [
-                    {
-                        label: 'Weight (kg)',
-                        data: weightData.map(d => d.weight),
-                        borderColor: 'rgb(99, 102, 241)',
-                        backgroundColor: 'rgba(99, 102, 241, 0.1)',
-                        borderWidth: 3,
-                        pointRadius: 5,
-                        tension: 0.4,
-                        fill: true
-                    },
-                    {% if progress_data.sleep_trend %}
-                    {
-                        label: 'Sleep (hours)',
-                        data: sleepData.map(d => d.hours),
-                        borderColor: 'rgb(59, 130, 246)',
-                        backgroundColor: 'rgba(59, 130, 246, 0.1)',
-                        borderWidth: 3,
-                        pointRadius: 5,
-                        tension: 0.4,
-                        fill: true,
-                        yAxisID: 'y1'
-                    }
-                    {% endif %}
-                ]
-            },
-            options: {
-                responsive: true,
-                interaction: { intersect: false, mode: 'index' },
-                scales: {
-                    y: { title: { display: true, text: 'Weight (kg)' } },
-                    {% if progress_data.sleep_trend %}y1: { position: 'right', title: { display: true, text: 'Sleep (hrs)' }, grid: { drawOnChartArea: false } }{% endif %}
-                }
-            }
-        });
-    }
-    {% endif %}
+    } catch (ce) { console.error('Chart error:', ce); }
 </script>
 {% endblock %}
-

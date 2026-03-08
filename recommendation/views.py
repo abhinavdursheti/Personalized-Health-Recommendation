@@ -5,6 +5,7 @@ from django.contrib import messages
 from django.http import JsonResponse
 from django.views.decorators.http import require_http_methods
 from django.views.decorators.csrf import csrf_exempt
+from datetime import datetime
 import json
 
 from .models import UserProfile, HealthData, Recommendation, RecoveryStabilityAnalysis, BehaviorCorrelationAnalysis, HabitSensitivityAnalysis, Reminder, HealthRiskAlert, DiseasePrediction, FoodEntry
@@ -15,7 +16,7 @@ from .utils import (
     assess_progress, assess_health_risks, predict_disease_risks, calculate_consistency_score,
     detect_health_drift, suggest_effort_to_impact_actions, compute_lifestyle_risk_predictions,
     calculate_recovery_score, compute_recovery_score_7day, compute_stability_index, compute_disease_risk_momentum,
-    estimate_biological_age, compute_health_balance_dimensions,
+    estimate_biological_age, compute_health_balance_dimensions, calculate_health_risk,
 )
 from .ml_models.simulator_model import HealthSimulatorModel
 
@@ -99,17 +100,85 @@ def _build_dashboard_context(request):
                     recommendations=alert_data['recommendations']
                 )
 
-    # Health Recovery Score (today, yesterday, and last 7 days - data-driven)
-    from datetime import timedelta
-    today_data = HealthData.objects.filter(user=request.user, date=today).first()
-    yesterday = today - timedelta(days=1)
-    yesterday_data = HealthData.objects.filter(user=request.user, date=yesterday).first()
+    # Health Recovery Score (latest, previous, and last 7 days - data-driven)
+    recent_health_records = HealthData.objects.filter(user=request.user).order_by('-date')[:2]
+    today_data = recent_health_records[0] if len(recent_health_records) > 0 else None
+    yesterday_data = recent_health_records[1] if len(recent_health_records) > 1 else None
+    
     recovery_today = calculate_recovery_score(today_data, profile)
     recovery_yesterday = calculate_recovery_score(yesterday_data, profile)
     recovery_7day = compute_recovery_score_7day(profile, list(health_data_list))
 
     # Health Stability Index (predictive behavior score)
     stability_index = compute_stability_index(health_data_list)
+
+    # ----- ML Model Predictions -----
+    ml_predictions = None
+    try:
+        from ml_models.predict_models import (
+            predict_lifestyle_risk,
+            predict_recovery_score,
+            predict_exercise_category,
+        )
+        # Use the latest health data entry that has the required fields
+        latest_with_ml = (
+            HealthData.objects.filter(user=request.user)
+            .exclude(sleep_hours__isnull=True)
+            .exclude(exercise_minutes__isnull=True)
+            .order_by('-date')
+            .first()
+        )
+        if latest_with_ml:
+            age = profile.age
+            sleep_hours_val = latest_with_ml.sleep_hours or 7.0
+            activity_level_val = latest_with_ml.exercise_minutes or 30
+            stress_level_val = latest_with_ml.stress_level or 5
+            daily_steps_val = latest_with_ml.daily_steps or 5000
+            
+            tdee_val = getattr(profile, 'tdee', None) or 2000
+            calories_consumed_val = (
+                latest_with_ml.calories_consumed 
+                if latest_with_ml.calories_consumed is not None 
+                else latest_with_ml.total_calories if latest_with_ml.total_calories > 0 else tdee_val
+            )
+
+            lifestyle_dict = predict_lifestyle_risk(profile.bmi, age, sleep_hours_val, activity_level_val, stress_level_val, daily_steps_val)
+            recovery_dict = predict_recovery_score(sleep_hours_val, activity_level_val, calories_consumed_val, stress_level_val)
+            exercise_dict = predict_exercise_category(profile.bmi, age, sleep_hours_val, activity_level_val, stress_level_val, daily_steps_val)
+
+            lifestyle_risk = lifestyle_dict.get('risk_label', 'Unknown')
+            recovery_score = recovery_dict.get('recovery_score', 0)
+            
+            # --- Consistency Adjustment Layer ---
+            # If a user is significantly obese/overweight, their recovery score should reflect reality.
+            if lifestyle_risk == "Obese" or profile.bmi >= 30:
+                recovery_score = min(recovery_score, 60)
+            elif lifestyle_risk == "Overweight":
+                recovery_score = min(recovery_score, 75)
+            
+            # Recalculate status based on adjusted score
+            if recovery_score >= 80:
+                recovery_status = "Excellent"
+            elif recovery_score >= 60:
+                recovery_status = "Good"
+            elif recovery_score >= 40:
+                recovery_status = "Fair"
+            else:
+                recovery_status = "Poor"
+
+            ml_predictions = {
+                'lifestyle_risk': lifestyle_risk,
+                'lifestyle_risk_confidence': round(lifestyle_dict.get('confidence', 0) * 100, 2),
+                'recovery_score': recovery_score,
+                'recovery_status': recovery_status,
+                'exercise_category': exercise_dict.get('category_label', 'Unknown'),
+                'exercise_recommendation': exercise_dict.get('recommendation', 'Continue with routine'),
+            }
+    except Exception as e:
+        print(f"DEBUG ML DASHBOARD ERROR: {e}")
+        import traceback
+        traceback.print_exc()
+        ml_predictions = None
 
     return {
         'profile': profile,
@@ -133,6 +202,7 @@ def _build_dashboard_context(request):
         'recovery_yesterday': recovery_yesterday,
         'recovery_7day': recovery_7day,
         'stability_index': stability_index,
+        'ml_predictions': ml_predictions,
     }
 
 
@@ -469,14 +539,16 @@ def add_health_data(request):
         exercise_minutes = request.POST.get('exercise_minutes')
         calories_consumed = request.POST.get('calories_consumed')
         water_intake = request.POST.get('water_intake_liters')
+        stress_level = request.POST.get('stress_level')
+        daily_steps = request.POST.get('daily_steps')
         notes = request.POST.get('notes', '')
         
-        # Get the last entry date for this user
-        last_entry = HealthData.objects.filter(user=request.user).order_by('-date').first()
-        
-        # If there's a last entry, use next day; otherwise use today
-        if last_entry:
-            entry_date = last_entry.date + timedelta(days=1)
+        # Feature: Automatically increment the date to the next day for rapid testing 
+        # so multiple submissions don't pile up on the same day.
+        latest_entry = HealthData.objects.filter(user=request.user).order_by('-date').first()
+        if latest_entry:
+            # Add one day to the most recent entry's date
+            entry_date = latest_entry.date + timedelta(days=1)
         else:
             entry_date = date.today()
         
@@ -488,11 +560,56 @@ def add_health_data(request):
             exercise_minutes=int(exercise_minutes) if exercise_minutes else None,
             calories_consumed=float(calories_consumed) if calories_consumed else None,
             water_intake_liters=float(water_intake) if water_intake else None,
+            stress_level=int(stress_level) if stress_level else None,
+            daily_steps=int(daily_steps) if daily_steps else None,
             notes=notes,
         )
         
         # Update nutrition totals from food entries for this date
         update_nutrition_totals(request.user, entry_date)
+        
+        # Execute ML predictions on the newly saved data
+        ml_predictions = None
+        try:
+            from ml_models.predict_models import (
+                predict_lifestyle_risk,
+                predict_recovery_score,
+                predict_exercise_category,
+            )
+            age = request.user.userprofile.age
+            sleep_hours_val = health_data.sleep_hours or 7.0
+            activity_level_val = health_data.exercise_minutes or 30
+            stress_level_val = health_data.stress_level or 5
+            daily_steps_val = health_data.daily_steps or 5000
+
+            tdee_val = getattr(request.user.userprofile, 'tdee', None) or 2000
+            calories_consumed_val = (
+                health_data.calories_consumed 
+                if health_data.calories_consumed is not None 
+                else health_data.total_calories if health_data.total_calories > 0 else tdee_val
+            )
+            bmi_val = request.user.userprofile.bmi
+
+            ml_predictions = {
+                'lifestyle_risk': predict_lifestyle_risk(
+                    bmi_val, age, sleep_hours_val, activity_level_val,
+                    stress_level_val, daily_steps_val
+                ),
+                'recovery_score': predict_recovery_score(
+                    sleep_hours_val, activity_level_val,
+                    calories_consumed_val, stress_level_val
+                ),
+                'exercise_category': predict_exercise_category(
+                    bmi_val, age, sleep_hours_val, activity_level_val,
+                    stress_level_val, daily_steps_val
+                ),
+            }
+            if 'confidence' in ml_predictions['lifestyle_risk']:
+                ml_predictions['lifestyle_risk']['confidence'] = round(
+                    ml_predictions['lifestyle_risk']['confidence'] * 100, 2
+                )
+        except Exception as ml_err:
+            print("ML prediction error during save:", ml_err)
         
         return JsonResponse({
             'success': True,
@@ -504,7 +621,10 @@ def add_health_data(request):
                 'exercise_minutes': health_data.exercise_minutes,
                 'calories_consumed': health_data.calories_consumed,
                 'water_intake_liters': health_data.water_intake_liters,
-            }
+                'stress_level': health_data.stress_level,
+                'daily_steps': health_data.daily_steps,
+            },
+            'ml_predictions': ml_predictions
         })
     except Exception as e:
         return JsonResponse({'error': str(e)}, status=400)
@@ -763,11 +883,9 @@ def analytics_recovery(request):
     health_data_list = list(HealthData.objects.filter(user=request.user).order_by('date'))
     has_sufficient_data = len(health_data_list) >= 1
 
-    from datetime import date, timedelta
-    today = date.today()
-    yesterday = today - timedelta(days=1)
-    today_data = HealthData.objects.filter(user=request.user, date=today).first()
-    yesterday_data = HealthData.objects.filter(user=request.user, date=yesterday).first()
+    records = HealthData.objects.filter(user=request.user).order_by('-date')
+    today_data = records[0] if records.count() > 0 else None
+    yesterday_data = records[1] if records.count() > 1 else None
     recovery_today = calculate_recovery_score(today_data, profile)
     recovery_yesterday = calculate_recovery_score(yesterday_data, profile)
     stability_index = compute_stability_index(health_data_list)
@@ -838,24 +956,25 @@ def analytics_habit_streak(request):
         return streak
 
     sleep_streak = _current_streak(
-        lambda e: e.sleep_hours is not None and e.sleep_hours > 0
+        lambda e: e.sleep_hours is not None and e.sleep_hours >= 7.0
     )
     exercise_streak = _current_streak(
-        lambda e: e.exercise_minutes is not None and e.exercise_minutes > 0
+        lambda e: e.exercise_minutes is not None and e.exercise_minutes >= 30
     )
+    # Diet streak assumes TDEE is met. We can fetch tdee inside lambda if needed, but easier to use baseline ~2000
+    tdee = getattr(profile, 'tdee', None) or 2000
     diet_streak = _current_streak(
         lambda e: (
-            (e.total_calories is not None and e.total_calories > 0) or
-            (e.calories_consumed is not None and e.calories_consumed > 0)
+            (e.total_calories is not None and abs(e.total_calories - tdee) <= 300) or
+            (e.calories_consumed is not None and abs(e.calories_consumed - tdee) <= 300)
         )
     )
+    # Overall Activity Streak means ANY of the healthy thresholds was met
     activity_streak = _current_streak(
         lambda e: any([
-            (e.sleep_hours or 0) > 0,
-            (e.exercise_minutes or 0) > 0,
-            (e.calories_consumed or 0) > 0,
-            (e.total_calories or 0) > 0,
-            (e.water_intake_liters or 0) > 0,
+            (e.sleep_hours or 0) >= 7.0,
+            (e.exercise_minutes or 0) >= 30,
+            (e.water_intake_liters or 0) >= 2.0
         ])
     )
 
@@ -873,42 +992,61 @@ def analytics_habit_streak(request):
 
 @login_required
 def analytics_risk_momentum(request):
-    """Health Risk Momentum Tracker based on disease risk trends."""
+    """Health Risk Momentum Tracker based on lifestyle risk trends."""
+    try:
+        profile = request.user.userprofile
+    except UserProfile.DoesNotExist:
+        messages.warning(request, 'Please complete your profile first.')
+        return redirect('setup_profile')
 
-    predictions = list(
-        DiseasePrediction.objects.filter(user=request.user)
-        .order_by('created_at')
-    )
-
-    momentum = compute_disease_risk_momentum(predictions) or []
-
-    # Safe absolute value calculation
-    for item in momentum:
-        change = item.get("change_per_week", 0)
-        item["abs_change_per_week"] = abs(change)
-
-    primary_series_labels = '[]'
-    primary_series_values = '[]'
-    primary_disease = None
-    primary_momentum = None
-
-    if momentum:
+    # Get recent health data, calculate daily risk
+    health_data_list = list(HealthData.objects.filter(user=request.user).order_by('date'))
+    # Use last 14-30 days for momentum
+    window = health_data_list[-30:] 
+    
+    momentum = []
+    if len(window) >= 2:
+        # Calculate daily risk score using the central formula
+        daily_risks = []
+        for d in window:
+            risk_dict = calculate_health_risk(profile, [d])
+            daily_risks.append({
+                'date': d.date,
+                'score': risk_dict['risk_score']
+            })
+            
+        first = daily_risks[0]
+        last = daily_risks[-1]
+        days = max(1, (last['date'] - first['date']).days)
+        weeks = max(1.0, days / 7.0)
+        change_per_week = (last['score'] - first['score']) / weeks
+        
+        direction = 'increasing' if change_per_week > 0 else 'decreasing' if change_per_week < 0 else 'stable'
+        
+        momentum.append({
+            'disease': 'Overall Lifestyle Risk',
+            'change_per_week': round(change_per_week, 2),
+            'abs_change_per_week': abs(round(change_per_week, 2)),
+            'direction': direction,
+            'start_score': first['score'],
+            'end_score': last['score'],
+            'weeks_span': round(weeks, 1),
+        })
+        
+        primary_disease = 'Overall Lifestyle Risk'
         primary_momentum = momentum[0]
-        primary_disease = primary_momentum['disease']
-
-        series = [
-            p for p in predictions
-            if p.disease_type == primary_disease
-        ]
-
-        series_sorted = sorted(series, key=lambda x: x.created_at)
-
-        labels = [p.created_at.strftime('%Y-%m-%d') for p in series_sorted]
-        values = [round(p.risk_score, 1) for p in series_sorted]
-
+        
+        labels = [r['date'].strftime('%Y-%m-%d') for r in daily_risks]
+        values = [r['score'] for r in daily_risks]
+        
         import json
         primary_series_labels = json.dumps(labels)
         primary_series_values = json.dumps(values)
+    else:
+        primary_disease = None
+        primary_momentum = None
+        primary_series_labels = '[]'
+        primary_series_values = '[]'
 
     return render(request, 'analytics_risk_momentum.html', {
         'momentum': momentum,
@@ -981,14 +1119,13 @@ def analytics_health_balance(request):
         stability_index=stability_index,
     )
 
-    radar_labels = ['Sleep', 'Exercise', 'Nutrition', 'Recovery', 'Stability', 'Metabolic']
+    radar_labels = ['Sleep', 'Exercise', 'Calories', 'Stress', 'Hydration']
     radar_values = [
         balance['sleep'],
         balance['exercise'],
-        balance['nutrition'],
-        balance['recovery'],
-        balance['stability'],
-        balance['metabolic'],
+        balance['calories'],
+        balance['stress'],
+        balance['hydration'],
     ]
 
     return render(request, 'analytics_health_balance.html', {
@@ -1302,19 +1439,31 @@ def delete_health_data(request, data_id):
 def create_reminder(request):
     """Create a new reminder"""
     try:
+        time_str = request.POST.get('time')
+        if isinstance(time_str, str):
+            reminder_time = datetime.strptime(time_str, '%H:%M').time()
+        else:
+            reminder_time = time_str
+
         reminder = Reminder.objects.create(
             user=request.user,
             reminder_type=request.POST.get('reminder_type'),
-            time=request.POST.get('time'),
+            time=reminder_time,
             message=request.POST.get('message', ''),
             days_of_week=request.POST.getlist('days_of_week') or list(range(7)),
         )
+
+        if hasattr(reminder.time, 'strftime'):
+            formatted_time = reminder.time.strftime('%H:%M')
+        else:
+            formatted_time = str(reminder.time)
+
         return JsonResponse({
             'success': True,
             'reminder': {
                 'id': reminder.id,
                 'type': reminder.reminder_type,
-                'time': reminder.time.strftime('%H:%M'),
+                'time': formatted_time,
                 'message': reminder.message,
             }
         })

@@ -57,9 +57,16 @@
                 </h5>
                 <div class="row">
                     <div class="col-md-6">
-                        <div class="d-flex align-items-center p-3 rounded-3 {% if recovery_today.score is not None %}{% if recovery_today.label == 'Excellent' %}bg-success bg-opacity-10 border border-success{% elif recovery_today.label == 'Good' %}bg-info bg-opacity-10 border border-info{% elif recovery_today.label == 'Fair' %}bg-warning bg-opacity-10 border border-warning{% else %}bg-danger bg-opacity-10 border border-danger{% endif %}{% else %}bg-light{% endif %}">
+                        <div
+                            class="d-flex align-items-center p-3 rounded-3 {% if recovery_today.score is not None %}{% if recovery_today.label == 'Excellent' %}bg-success{% elif recovery_today.label == 'Good' %}bg-info{% elif recovery_today.label == 'Fair' %}bg-warning{% else %}bg-danger{% endif %} bg-opacity-10 border{% else %}bg-light{% endif %}">
                             <div class="me-3">
-                                <span class="display-5 fw-bold">{% if recovery_today.score is not None %}{{ recovery_today.score }}{% else %}—{% endif %}</span>
+                                <span class="display-5 fw-bold">
+                                    {% if recovery_today.score is not None %}
+                                    {{ recovery_today.score }}
+                                    {% else %}
+                                    —
+                                    {% endif %}
+                                </span>
                             </div>
                             <div>
                                 <strong>Today</strong><br>
@@ -68,9 +75,16 @@
                         </div>
                     </div>
                     <div class="col-md-6">
-                        <div class="d-flex align-items-center p-3 rounded-3 {% if recovery_yesterday.score is not None %}{% if recovery_yesterday.label == 'Excellent' %}bg-success bg-opacity-10 border border-success{% elif recovery_yesterday.label == 'Good' %}bg-info bg-opacity-10 border border-info{% elif recovery_yesterday.label == 'Fair' %}bg-warning bg-opacity-10 border border-warning{% else %}bg-danger bg-opacity-10 border border-danger{% endif %}{% else %}bg-light{% endif %}">
+                        <div
+                            class="d-flex align-items-center p-3 rounded-3 {% if recovery_yesterday.score is not None %}{% if recovery_yesterday.label == 'Excellent' %}bg-success{% elif recovery_yesterday.label == 'Good' %}bg-info{% elif recovery_yesterday.label == 'Fair' %}bg-warning{% else %}bg-danger{% endif %} bg-opacity-10 border{% else %}bg-light{% endif %}">
                             <div class="me-3">
-                                <span class="display-5 fw-bold">{% if recovery_yesterday.score is not None %}{{ recovery_yesterday.score }}{% else %}—{% endif %}</span>
+                                <span class="display-5 fw-bold">
+                                    {% if recovery_yesterday.score is not None %}
+                                    {{ recovery_yesterday.score }}
+                                    {% else %}
+                                    —
+                                    {% endif %}
+                                </span>
                             </div>
                             <div>
                                 <strong>Yesterday</strong><br>
@@ -79,7 +93,9 @@
                         </div>
                     </div>
                 </div>
-                <p class="text-muted small mb-0 mt-2"><i class="bi bi-info-circle"></i> Based on sleep quality, activity, calories vs goal, and recovery readiness. Log data to see your score.</p>
+                <p class="text-muted small mb-0 mt-2">
+                    <i class="bi bi-info-circle"></i> Based on sleep quality, activity, calories vs goal.
+                </p>
             </div>
         </div>
     </div>
@@ -89,26 +105,39 @@
 {% if progress_assessment.status != 'insufficient_data' %}
 <div class="row mb-4">
     <div class="col-md-12">
-        <div class="card border-{% if progress_assessment.status == 'excellent' %}success{% elif progress_assessment.status == 'good' %}info{% elif progress_assessment.status == 'maintaining' %}warning{% else %}danger{% endif %}">
+        <div
+            class="card border-{% if progress_assessment.status == 'excellent' %}success{% elif progress_assessment.status == 'good' %}info{% elif progress_assessment.status == 'maintaining' %}warning{% else %}danger{% endif %}">
             <div class="card-body">
                 <h5 class="card-title">
-                    <i class="bi bi-{% if progress_assessment.status == 'excellent' %}check-circle-fill text-success{% elif progress_assessment.status == 'good' %}check-circle text-info{% elif progress_assessment.status == 'maintaining' %}exclamation-circle text-warning{% else %}x-circle text-danger{% endif %}"></i> 
+                    <i
+                        class="bi bi-{% if progress_assessment.status == 'excellent' %}check-circle-fill text-success{% elif progress_assessment.status == 'good' %}check-circle text-info{% elif progress_assessment.status == 'maintaining' %}exclamation-circle text-warning{% else %}x-circle text-danger{% endif %}"></i>
                     Progress Update
                 </h5>
                 <div class="row">
                     <div class="col-md-8">
                         <h4 class="mb-2">{{ progress_assessment.message }}</h4>
                         <p class="mb-0">
-                            <strong>Weight Change:</strong> 
-                            <span class="{% if progress_assessment.weight_change < 0 %}text-success{% elif progress_assessment.weight_change > 0 %}text-danger{% else %}text-info{% endif %}">
-                                {{ progress_assessment.weight_change|floatformat:1 }} kg 
+                            <strong>Weight Change:</strong>
+                            <span
+                                class="{% if progress_assessment.weight_change < 0 %}text-success{% elif progress_assessment.weight_change > 0 %}text-danger{% else %}text-info{% endif %}">
+                                {{ progress_assessment.weight_change|floatformat:1 }} kg
                                 ({{ progress_assessment.weight_change_pct|floatformat:1 }}%)
                             </span>
                         </p>
                     </div>
                     <div class="col-md-4 text-end">
-                        <span class="badge bg-{% if progress_assessment.status == 'excellent' %}success{% elif progress_assessment.status == 'good' %}info{% elif progress_assessment.status == 'maintaining' %}warning{% else %}danger{% endif %} p-3" style="font-size: 1.1rem;">
-                            {% if progress_assessment.status == 'excellent' %}Excellent!{% elif progress_assessment.status == 'good' %}Good Progress{% elif progress_assessment.status == 'maintaining' %}Maintaining{% else %}Needs Improvement{% endif %}
+                        <span
+                            class="badge bg-{% if progress_assessment.status == 'excellent' %}success{% elif progress_assessment.status == 'good' %}info{% elif progress_assessment.status == 'maintaining' %}warning{% else %}danger{% endif %} p-3"
+                            style="font-size: 1.1rem;">
+                            {% if progress_assessment.status == 'excellent' %}
+                            Excellent!
+                            {% elif progress_assessment.status == 'good' %}
+                            Good Progress
+                            {% elif progress_assessment.status == 'maintaining' %}
+                            Maintaining
+                            {% else %}
+                            Needs Improvement
+                            {% endif %}
                         </span>
                     </div>
                 </div>
@@ -118,80 +147,91 @@
 </div>
 {% endif %}
 
-<!-- Quick Consistency & Stability Summary -->
+
+
+<!-- ML-Powered Predictions -->
+{% if ml_predictions %}
 <div class="row mb-4">
+    <div class="col-md-12">
+        <h5 class="text-white mb-3">
+            <i class="bi bi-cpu text-info"></i> ML-Powered Predictions
+            <small class="text-light fw-normal">(from trained models)</small>
+        </h5>
+    </div>
     <div class="col-md-4">
-        <div class="card">
+        <div class="card border-0 shadow-sm">
             <div class="card-body">
-                <h5 class="card-title"><i class="bi bi-check2-circle text-success"></i> Consistency</h5>
+                <h6 class="card-title">
+                    <i
+                        class="bi bi-shield-fill-check text-{% if ml_predictions.lifestyle_risk == 'Normal' %}success{% elif ml_predictions.lifestyle_risk == 'Overweight' %}warning{% else %}danger{% endif %}"></i>
+                    Lifestyle Risk
+                </h6>
                 <div class="d-flex align-items-center mb-2">
-                    <div class="progress flex-grow-1" style="height: 16px;">
-                        <div class="progress-bar bg-{% if consistency_summary.level == 'High' %}success{% elif consistency_summary.level == 'Moderate' %}warning{% else %}danger{% endif %}" style="width: {{ consistency_summary.score }}%;">
-                            {{ consistency_summary.score }}
-                        </div>
-                    </div>
-                    <span class="badge bg-light text-dark ms-2">{{ consistency_summary.level }}</span>
+                    <span
+                        class="display-6 fw-bold me-2 text-{% if ml_predictions.lifestyle_risk == 'Normal' %}success{% elif ml_predictions.lifestyle_risk == 'Overweight' %}warning{% else %}danger{% endif %}">
+                        {{ ml_predictions.lifestyle_risk }}
+                    </span>
                 </div>
-                <p class="text-muted small mb-0">{{ consistency_summary.summary }}</p>
-                <a href="{% url 'dashboard_insights' %}" class="small">See detailed insights →</a>
+                <div class="progress mb-2" style="height: 8px;">
+                    <div class="progress-bar bg-{% if ml_predictions.lifestyle_risk == 'Normal' %}success{% elif ml_predictions.lifestyle_risk == 'Overweight' %}warning{% else %}danger{% endif %}"
+                        style="width: {{ ml_predictions.lifestyle_risk_confidence|floatformat:0 }}%;"></div>
+                </div>
+                <small class="text-muted">
+                    Confidence:
+                    {{ ml_predictions.lifestyle_risk_confidence|floatformat:1 }}%
+                </small>
+                <br><small class="text-muted"><i class="bi bi-gear"></i> Random Forest Model</small>
             </div>
         </div>
     </div>
     <div class="col-md-4">
-        <div class="card">
+        <div class="card border-0 shadow-sm">
             <div class="card-body">
-                <h5 class="card-title"><i class="bi bi-shield-check text-primary"></i> Stability Index</h5>
-                {% if stability_index.score %}
+                <h6 class="card-title">
+                    <i
+                        class="bi bi-heart-pulse-fill text-{% if ml_predictions.recovery_status == 'Excellent' %}success{% elif ml_predictions.recovery_status == 'Good' %}info{% elif ml_predictions.recovery_status == 'Fair' %}warning{% else %}danger{% endif %}"></i>
+                    ML Recovery Score
+                </h6>
                 <div class="d-flex align-items-center mb-2">
-                    <span class="display-6 fw-bold me-3">{{ stability_index.score }}</span>
-                    <div>
-                        <span class="badge bg-primary">{{ stability_index.label }}</span><br>
-                        <small class="text-muted">Lower volatility in sleep, weight & calories.</small>
-                    </div>
+                    <span class="display-6 fw-bold me-2">
+                        {{ ml_predictions.recovery_score|floatformat:1 }}
+                    </span>
+                    <span
+                        class="badge bg-{% if ml_predictions.recovery_status == 'Excellent' %}success{% elif ml_predictions.recovery_status == 'Good' %}info{% elif ml_predictions.recovery_status == 'Fair' %}warning{% else %}danger{% endif %} p-2">
+                        {{ ml_predictions.recovery_status }}
+                    </span>
                 </div>
-                {% else %}
-                <p class="text-muted small mb-0">Log a few days of data to see your stability index.</p>
-                {% endif %}
-                <a href="{% url 'analytics_recovery' %}" class="small">See detailed stability →</a>
+                <div class="progress mb-2" style="height: 8px;">
+                    <div class="progress-bar bg-{% if ml_predictions.recovery_status == 'Excellent' %}success{% elif ml_predictions.recovery_status == 'Good' %}info{% elif ml_predictions.recovery_status == 'Fair' %}warning{% else %}danger{% endif %}"
+                        style="width: {{ ml_predictions.recovery_score|floatformat:0 }}%;"></div>
+                </div>
+                <small class="text-muted">Score out of 100</small>
+                <br><small class="text-muted"><i class="bi bi-gear"></i> Linear Reg Model</small>
             </div>
         </div>
     </div>
     <div class="col-md-4">
-        <div class="card">
+        <div class="card border-0 shadow-sm">
             <div class="card-body">
-                <h5 class="card-title"><i class="bi bi-graph-up"></i> Recent Health Data (latest 7)</h5>
-                {% if recent_data %}
-                <div class="table-responsive">
-                    <table class="table table-sm table-hover mb-0">
-                        <thead>
-                            <tr>
-                                <th>Date</th>
-                                <th>Weight</th>
-                                <th>Sleep</th>
-                                <th>Exercise</th>
-                                <th>Calories</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            {% for data in recent_data %}
-                            <tr>
-                                <td>{{ data.date|date:"M d, Y" }}</td>
-                                <td>{{ data.weight }}</td>
-                                <td>{{ data.sleep_hours|default:"-" }}</td>
-                                <td>{{ data.exercise_minutes|default:"-" }}</td>
-                                <td>{{ data.total_calories|default:"-"|floatformat:0 }}</td>
-                            </tr>
-                            {% endfor %}
-                        </tbody>
-                    </table>
+                <h6 class="card-title">
+                    <i class="bi bi-bicycle text-primary"></i>
+                    Exercise Recommendation
+                </h6>
+                <div class="mb-2">
+                    <span
+                        class="badge bg-{% if ml_predictions.exercise_category == 'Normal' %}success{% elif ml_predictions.exercise_category == 'Overweight' %}warning{% else %}danger{% endif %} p-2 fs-6">
+                        {{ ml_predictions.exercise_category }}
+                    </span>
                 </div>
-                {% else %}
-                    <p class="text-muted mb-0">No health data yet. Start logging to see trends.</p>
-                {% endif %}
+                <p class="text-muted small mb-1">
+                    {{ ml_predictions.exercise_recommendation }}
+                </p>
+                <small class="text-muted"><i class="bi bi-gear"></i> Decision Tree Model</small>
             </div>
         </div>
     </div>
 </div>
+{% endif %}
 
 <!-- Lifestyle Risk (non-diagnostic) -->
 <div class="row mb-4">
@@ -199,8 +239,8 @@
         <div class="card">
             <div class="card-body">
                 <h5 class="card-title d-flex justify-content-between align-items-center">
-                    <span><i class="bi bi-heart-pulse text-danger"></i> Lifestyle Risk (not a diagnosis)</span>
-                    <small class="text-muted">Based on BMI trend, sleep, exercise, calories, consistency, and drifts.</small>
+                    <span><i class="bi bi-heart-pulse text-danger"></i> Lifestyle Risk</span>
+                    <small class="text-muted">Based on BMI, sleep, exercise, and consistency.</small>
                 </h5>
                 {% if lifestyle_risks %}
                 <div class="row">
@@ -208,28 +248,32 @@
                     <div class="col-md-4 mb-3">
                         <div class="card border-light">
                             <div class="card-body">
-                                <h6 class="mb-2">{{ risk.condition }}
-                                    <span class="badge bg-{% if risk.risk_level == 'High' %}danger{% elif risk.risk_level == 'Moderate' %}warning{% else %}success{% endif %}">{{ risk.risk_level }}</span>
+                                <h6 class="mb-2">
+                                    {{ risk.condition }}
+                                    <span
+                                        class="badge bg-{% if risk.risk_level == 'High' %}danger{% elif risk.risk_level == 'Moderate' %}warning{% else %}success{% endif %}">
+                                        {{ risk.risk_level }}
+                                    </span>
                                 </h6>
                                 <ul class="small text-muted mb-2">
                                     {% for d in risk.drivers %}
                                     <li>{{ d }}</li>
                                     {% endfor %}
                                 </ul>
-                                <p class="text-muted small mb-0"><i class="bi bi-info-circle"></i> {{ risk.disclaimer }}</p>
+                                <p class="text-muted small mb-0">
+                                    <i class="bi bi-info-circle"></i> {{ risk.disclaimer }}
+                                </p>
                             </div>
                         </div>
                     </div>
                     {% endfor %}
                 </div>
                 {% else %}
-                    <p class="text-muted mb-0">Add a few days of data to see lifestyle-based risk estimates.</p>
+                <p class="text-muted mb-0">Log more data to see estimates.</p>
                 {% endif %}
             </div>
         </div>
     </div>
 </div>
 
-{# Removed duplicate navigation shortcut cards to reduce clutter; navigation remains in top navbar. #}
 {% endblock %}
-
