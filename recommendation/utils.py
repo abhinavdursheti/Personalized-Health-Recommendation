@@ -979,19 +979,30 @@ def estimate_biological_age(user_profile, health_data_list, consistency_summary=
     stps = latest_entry.daily_steps if latest_entry.daily_steps is not None else 5000
     
     try:
+        # Pass the correct arguments matching predict_recovery_score signature
         ml_result = ml_predict_recovery(
-            age=user_profile.age,
             sleep_hours=sh,
             activity_level=ex,
-            stress_level=st,
-            daily_steps=stps
+            calories_consumed=calories_avg,
+            stress_level=st
         )
-        raw_prediction = ml_result.get('raw_prediction', 1.0) # roughly 0-2 range where lower=healthier
-        # Map raw prediction (typically 0 Normal, 1 Overweight, 2 Obese scaled) to age adjust
-        # Good/Normal (~0.0) -> subtracts years
-        # Poor/Obese (~2.0) -> adds up to +10 years
-        age_adjust = (raw_prediction - 0.5) * 6.0 
-        lifestyle_score = max(0, min(100, 100 - (raw_prediction * 25)))
+        recovery_score = ml_result.get('recovery_score', 65.0)
+        
+        if consistency_summary is None:
+            consistency_summary = calculate_consistency_score(health_data_list)
+        consistency_score = consistency_summary.get('score', 60)
+
+        if stability_index is None:
+            stability_index = compute_stability_index(health_data_list)
+        stability_score = stability_index.get('score') or 60
+
+        lifestyle_score = (
+            consistency_score * 0.35 +
+            stability_score * 0.3 +
+            recovery_score * 0.35
+        )
+        lifestyle_score = max(0, min(100, lifestyle_score))
+        age_adjust = (75 - lifestyle_score) / 5.0
     except Exception:
         # Fallback to pure statistical approach if ML fails
         if consistency_summary is None:
@@ -1011,12 +1022,16 @@ def estimate_biological_age(user_profile, health_data_list, consistency_summary=
         ) / 1.0
 
         lifestyle_score = max(0, min(100, lifestyle_score))
-        age_adjust = (75 - lifestyle_score) / 7.0
+        age_adjust = (75 - lifestyle_score) / 5.0
 
     chronological_age = user_profile.age
-    biological_age = round(chronological_age + age_adjust, 1)
+    raw_biological_age = chronological_age + age_adjust
+    
+    biological_age = max(chronological_age - 5.0, min(chronological_age + 20.0, raw_biological_age))
+    biological_age = round(biological_age, 1)
 
     delta = round(biological_age - chronological_age, 1)
+    abs_delta_years = abs(delta)
     direction = 'older' if delta > 0 else 'younger' if delta < 0 else 'same'
 
     drivers = []
@@ -1050,6 +1065,7 @@ def estimate_biological_age(user_profile, health_data_list, consistency_summary=
         'chronological_age': chronological_age,
         'biological_age': biological_age,
         'delta_years': delta,
+        'abs_delta_years': abs_delta_years,
         'direction': direction,
         'lifestyle_score': round(lifestyle_score, 1),
         'drivers': drivers,

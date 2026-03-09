@@ -120,14 +120,15 @@ def _build_dashboard_context(request):
             predict_recovery_score,
             predict_exercise_category,
         )
-        # Use the latest health data entry that has the required fields
-        latest_with_ml = (
+        # Use the latest health data entries that have the required fields
+        recent_ml_records = (
             HealthData.objects.filter(user=request.user)
             .exclude(sleep_hours__isnull=True)
             .exclude(exercise_minutes__isnull=True)
-            .order_by('-date')
-            .first()
+            .order_by('-date')[:2]
         )
+        latest_with_ml = recent_ml_records[0] if len(recent_ml_records) > 0 else None
+        
         if latest_with_ml:
             age = profile.age
             sleep_hours_val = latest_with_ml.sleep_hours or 7.0
@@ -142,8 +143,25 @@ def _build_dashboard_context(request):
                 else latest_with_ml.total_calories if latest_with_ml.total_calories > 0 else tdee_val
             )
 
+            previous_score = None
+            if len(recent_ml_records) > 1:
+                prev_mr = recent_ml_records[1]
+                p_sleep = prev_mr.sleep_hours or 7.0
+                p_act = prev_mr.exercise_minutes or 30
+                p_stress = prev_mr.stress_level or 5
+                p_cal = (
+                    prev_mr.calories_consumed 
+                    if prev_mr.calories_consumed is not None 
+                    else prev_mr.total_calories if prev_mr.total_calories > 0 else tdee_val
+                )
+                try:
+                    p_rec_dict = predict_recovery_score(p_sleep, p_act, p_cal, p_stress)
+                    previous_score = p_rec_dict.get('recovery_score')
+                except Exception:
+                    pass
+
             lifestyle_dict = predict_lifestyle_risk(profile.bmi, age, sleep_hours_val, activity_level_val, stress_level_val, daily_steps_val)
-            recovery_dict = predict_recovery_score(sleep_hours_val, activity_level_val, calories_consumed_val, stress_level_val)
+            recovery_dict = predict_recovery_score(sleep_hours_val, activity_level_val, calories_consumed_val, stress_level_val, previous_score)
             exercise_dict = predict_exercise_category(profile.bmi, age, sleep_hours_val, activity_level_val, stress_level_val, daily_steps_val)
 
             lifestyle_risk = lifestyle_dict.get('risk_label', 'Unknown')
@@ -590,6 +608,30 @@ def add_health_data(request):
             )
             bmi_val = request.user.userprofile.bmi
 
+            previous_score = None
+            prev_mr = (
+                HealthData.objects.filter(user=request.user)
+                .exclude(id=health_data.id)
+                .exclude(sleep_hours__isnull=True)
+                .exclude(exercise_minutes__isnull=True)
+                .order_by('-date')
+                .first()
+            )
+            if prev_mr:
+                p_sleep = prev_mr.sleep_hours or 7.0
+                p_act = prev_mr.exercise_minutes or 30
+                p_stress = prev_mr.stress_level or 5
+                p_cal = (
+                    prev_mr.calories_consumed 
+                    if prev_mr.calories_consumed is not None 
+                    else prev_mr.total_calories if prev_mr.total_calories > 0 else tdee_val
+                )
+                try:
+                    p_rec_dict = predict_recovery_score(p_sleep, p_act, p_cal, p_stress)
+                    previous_score = p_rec_dict.get('recovery_score')
+                except Exception:
+                    pass
+
             ml_predictions = {
                 'lifestyle_risk': predict_lifestyle_risk(
                     bmi_val, age, sleep_hours_val, activity_level_val,
@@ -597,7 +639,7 @@ def add_health_data(request):
                 ),
                 'recovery_score': predict_recovery_score(
                     sleep_hours_val, activity_level_val,
-                    calories_consumed_val, stress_level_val
+                    calories_consumed_val, stress_level_val, previous_score
                 ),
                 'exercise_category': predict_exercise_category(
                     bmi_val, age, sleep_hours_val, activity_level_val,
@@ -935,46 +977,40 @@ def analytics_habit_streak(request):
     entries = list(HealthData.objects.filter(user=request.user).order_by('-date'))
 
     def _current_streak(predicate):
-        """Return current consecutive-day streak from most recent entry."""
-        if not entries:
+        """Return current consecutive-day streak from most recent logged date."""
+        valid_entries = [e for e in entries if predicate(e)]
+        if not valid_entries:
             return 0
-        from datetime import timedelta
-        first = entries[0]
-        if not predicate(first):
+            
+        # Ensure streak calculation always starts from the most recent logged date.
+        if valid_entries[0].date != entries[0].date:
             return 0
+            
         streak = 1
-        prev_date = first.date
-        for entry in entries[1:]:
-            # Require calendar-consecutive dates for the streak
-            if (prev_date - entry.date) != timedelta(days=1):
-                break
-            if predicate(entry):
+        for i in range(len(valid_entries) - 1):
+            if (valid_entries[i].date - valid_entries[i+1].date).days == 1:
                 streak += 1
-                prev_date = entry.date
             else:
                 break
         return streak
 
     sleep_streak = _current_streak(
-        lambda e: e.sleep_hours is not None and e.sleep_hours >= 7.0
+        lambda e: e.sleep_hours is not None and e.sleep_hours > 0
     )
     exercise_streak = _current_streak(
-        lambda e: e.exercise_minutes is not None and e.exercise_minutes >= 30
+        lambda e: e.exercise_minutes is not None and e.exercise_minutes > 0
     )
-    # Diet streak assumes TDEE is met. We can fetch tdee inside lambda if needed, but easier to use baseline ~2000
-    tdee = getattr(profile, 'tdee', None) or 2000
     diet_streak = _current_streak(
-        lambda e: (
-            (e.total_calories is not None and abs(e.total_calories - tdee) <= 300) or
-            (e.calories_consumed is not None and abs(e.calories_consumed - tdee) <= 300)
-        )
+        lambda e: (e.total_calories is not None and e.total_calories > 0) or
+                  (e.calories_consumed is not None and e.calories_consumed > 0)
     )
-    # Overall Activity Streak means ANY of the healthy thresholds was met
     activity_streak = _current_streak(
         lambda e: any([
-            (e.sleep_hours or 0) >= 7.0,
-            (e.exercise_minutes or 0) >= 30,
-            (e.water_intake_liters or 0) >= 2.0
+            (e.sleep_hours or 0) > 0,
+            (e.exercise_minutes or 0) > 0,
+            (e.total_calories or 0) > 0,
+            (e.calories_consumed or 0) > 0,
+            (e.water_intake_liters or 0) > 0
         ])
     )
 

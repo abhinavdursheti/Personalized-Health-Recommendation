@@ -119,7 +119,7 @@ def predict_lifestyle_risk(bmi, age, sleep_hours, activity_level,
 
 
 def predict_recovery_score(sleep_hours, activity_level,
-                           calories_consumed, stress_level):
+                           calories_consumed, stress_level, previous_score=None):
     """
     Estimate a recovery score (0‑100) using the Linear Regression model.
     """
@@ -131,6 +131,14 @@ def predict_recovery_score(sleep_hours, activity_level,
 
     # Bound output 0-100 directly from regression
     recovery = max(0.0, min(100.0, prediction))
+
+    # Apply stabilization layer if previous score exists
+    if previous_score is not None:
+        if abs(recovery - previous_score) > 25:
+            sign = 1 if recovery > previous_score else -1
+            recovery = previous_score + sign * 25
+        # Ensure it stays within bounds after stabilization
+        recovery = max(0.0, min(100.0, recovery))
 
     if recovery >= 80:
         status = "Excellent"
