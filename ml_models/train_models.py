@@ -71,6 +71,53 @@ def load_and_preprocess():
         print("  Missing values     : 0  [OK]")
 
     # ------------------------------------------------------------------
+    # Data Augmentation (Synthesize ~850 rows to reach ~1200 rows total)
+    # ------------------------------------------------------------------
+    print("\n" + "=" * 60)
+    print("  Augmenting dataset …")
+    print("=" * 60)
+    np.random.seed(42) # For reproducibility
+    
+    # Calculate how many rows needed to reach 1200
+    target_rows = 1200
+    current_rows = len(df)
+    rows_to_add = target_rows - current_rows
+
+    if rows_to_add > 0:
+        print(f"  Synthesizing       : {rows_to_add} rows")
+        # Sample with replacement to maintain statistical distributions and relationships
+        df_synthetic = df.sample(n=rows_to_add, replace=True, random_state=42).copy()
+        
+        # Perturb numerical features slightly (e.g., +/- 5% of std dev) to create unique records
+        # but keep relationships intact.
+        
+        # Age: +/- 1 to 3 years
+        age_noise = np.random.randint(-3, 4, size=rows_to_add)
+        df_synthetic["Age"] = (df_synthetic["Age"] + age_noise).clip(lower=18)
+        
+        # Sleep Duration: +/- 0.1 to 0.8 hours
+        sleep_noise = np.random.uniform(-0.8, 0.8, size=rows_to_add)
+        df_synthetic["Sleep Duration"] = (df_synthetic["Sleep Duration"] + sleep_noise).clip(lower=3.0, upper=12.0)
+        
+        # Physical Activity Level: +/- 2 to 10 mins
+        activity_noise = np.random.randint(-10, 11, size=rows_to_add)
+        df_synthetic["Physical Activity Level"] = (df_synthetic["Physical Activity Level"] + activity_noise).clip(lower=10, upper=120)
+        
+        # Stress Level: +/- 0 to 1 point
+        stress_noise = np.random.randint(-1, 2, size=rows_to_add)
+        df_synthetic["Stress Level"] = (df_synthetic["Stress Level"] + stress_noise).clip(lower=1, upper=10)
+        
+        # Daily Steps: +/- 100 to 1000 steps
+        steps_noise = np.random.randint(-1000, 1001, size=rows_to_add)
+        df_synthetic["Daily Steps"] = (df_synthetic["Daily Steps"] + steps_noise).clip(lower=1000)
+        
+        # Combine original and synthetic data
+        df = pd.concat([df, df_synthetic], ignore_index=True)
+        print(f"  New dataset size   : {len(df)} rows")
+    else:
+        print(f"  Dataset already has {current_rows} rows. No augmentation needed.")
+
+    # ------------------------------------------------------------------
     # Synthesize Custom Fields for Better ML (BMI, Calories, Recovery)
     # ------------------------------------------------------------------
     np.random.seed(42) # For reproducibility
